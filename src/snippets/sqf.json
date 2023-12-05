@@ -1,0 +1,29 @@
+{
+    "Antistasi header comment": {
+        "body": [
+            "/*",
+            "Maintainer: $1",
+            "",
+            "Description:",
+            "    ${2:Work in Progress}",
+            "",
+            "Arguments:",
+            "    <${3}> $4",
+            "",
+            "Return Value:",
+            "    <${5}> $6",
+            "",
+            "Scope: ${7|Server,Server&HC,Clients,Any|}, ${8|Local Arguments,Global Arguments|}, ${9|Local Effect,Global Effect|}",
+            "Environment: ${10|Scheduled,Unscheduled,Any|}",
+            "Public: ${11|Yes,No|}",
+            "Dependencies:",
+            "    <${12}> $13",
+            "",
+            "Example:",
+            "    $14",
+            "*/"
+        ],
+        "prefix": "header_comment",
+        "description": "Antistasi header comment template for sqf files"
+    }
+}
