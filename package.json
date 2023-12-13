@@ -1,63 +1,93 @@
 {
-  "name": "antistasi-development",
-  "displayName": "Antistasi Development",
-  "description": "Utility to help Antistasi Devs",
-  "author": {
-    "name": "Giddi"
-  },
-  "license": "MIT",
-  "repository": {},
-  "version": "0.0.1",
-  "engines": {
-    "vscode": "^1.83.0"
-  },
-  "categories": [
-    "Snippets",
-    "Other"
-  ],
-  "keywords": [
-    "Antistasi",
-    "sqf",
-    "Arma"
-  ],
-  "preview": true,
-  "extensionKind": [],
-  "pricing": "Free",
-  "activationEvents": [
-    "onLanguage:sqf",
-    "onStartupFinished"
-  ],
-  "main": "./out/extension.js",
-  "contributes": {
-    "snippets": [
-      {
-        "language": "sqf",
-        "path": "./src/snippets/sqf.json"
-      }
-    ]
-  },
-  "scripts": {
-    "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./",
-    "pretest": "npm run compile && npm run lint",
-    "lint": "eslint src --ext ts",
-    "test": "node ./out/test/runTest.js"
-  },
-  "devDependencies": {
-    "@types/vscode": "^1.83.0",
-    "@types/mocha": "^10.0.2",
-    "@types/node": "18.x",
-    "@typescript-eslint/eslint-plugin": "^6.7.3",
-    "@typescript-eslint/parser": "^6.7.3",
-    "@types/xml2js": "^0.4.14",
-    "eslint": "^8.50.0",
-    "glob": "^10.3.3",
-    "mocha": "^10.2.0",
-    "typescript": "^5.2.2",
-    "@vscode/test-electron": "^2.3.4"
-  },
-  "dependencies": {
-    "xml2js": "^0.6.2"
-  }
+    "name": "antistasi-development",
+    "displayName": "Antistasi Development",
+    "description": "Utility to help Antistasi Devs",
+    "author": {
+        "name": "Giddi"
+    },
+    "license": "MIT",
+    "icon": "images/antistasi_development_icon.png",
+    "repository": {
+        "type": "github",
+        "url": "https://github.com/Giddius/antistasi-development-vscode"
+    },
+    "homepage": "https://github.com/Giddius/antistasi-development-vscode/blob/main/README.md",
+    "version": "0.0.1",
+    "engines": {
+        "vscode": "^1.83.0"
+    },
+    "categories": [
+        "Snippets",
+        "Other"
+    ],
+    "keywords": [
+        "Antistasi",
+        "sqf",
+        "Arma"
+    ],
+    "preview": true,
+    "extensionKind": [],
+    "pricing": "Free",
+    "activationEvents": [
+        "onLanguage:sqf",
+        "onStartupFinished"
+    ],
+    "main": "./out/extension.js",
+    "contributes": {
+        "snippets": [
+            {
+                "language": "sqf",
+                "path": "./src/snippets/sqf.json"
+            }
+        ],
+        "configuration": [
+            {
+                "title": "Antistasi Development",
+                "properties": {
+                    "antistasiDevelopment.stringtable_data.enable": {
+                        "type": "boolean",
+                        "default": true,
+                        "scope": "window",
+                        "description": "Enable all stringtable related functionality"
+                    },
+                    "antistasiDevelopment.stringtable_data.enableHover": {
+                        "type": "boolean",
+                        "default": true,
+                        "scope": "window",
+                        "description": "Enable Preview of the english text when hovering over a stringtable key."
+                    },
+                    "antistasiDevelopment.stringtable_data.enableDefinition": {
+                        "type": "boolean",
+                        "default": true,
+                        "scope": "window",
+                        "description": "Enable getting the definition of a stringtable key."
+                    }
+                }
+            }
+        ]
+    },
+    "scripts": {
+        "vscode:prepublish": "npm run compile",
+        "compile": "tsc -p ./",
+        "watch": "tsc -watch -p ./",
+        "pretest": "npm run compile && npm run lint",
+        "lint": "eslint src --ext ts",
+        "test": "node ./out/test/runTest.js"
+    },
+    "devDependencies": {
+        "@types/vscode": "^1.83.0",
+        "@types/mocha": "^10.0.2",
+        "@types/node": "18.x",
+        "@typescript-eslint/eslint-plugin": "^6.7.3",
+        "@typescript-eslint/parser": "^6.7.3",
+        "@types/xml2js": "^0.4.14",
+        "eslint": "^8.50.0",
+        "glob": "^10.3.3",
+        "mocha": "^10.2.0",
+        "typescript": "^5.2.2",
+        "@vscode/test-electron": "^2.3.4"
+    },
+    "dependencies": {
+        "xml2js": "^0.6.2"
+    }
 }

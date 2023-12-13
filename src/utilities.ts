@@ -5,7 +5,7 @@
 import * as vscode from 'vscode';
 import * as path from "path";
 import * as fs from "fs";
-// import * as fs_promises from "fs/promises";
+
 
 // endregion[Imports]
 
@@ -55,11 +55,9 @@ export async function* walk(directory_path: fs.PathLike): AsyncGenerator<string>
         dirent.path = path.join(directory_path.toString(), dirent.name);
 
         if (dirent.isFile()) {
-            // console.log(`is_file: ${dirent.isFile()}, path: ${dirent}`)
 
             yield dirent.path;
         } else if (dirent.isDirectory()) {
-            // console.log(`is_directory: ${dirent.isDirectory()}, path: ${dirent.path}, name: ${dirent.name}`)
 
             for await (const sub_path of walk(dirent.path)) {
                 yield sub_path
@@ -90,17 +88,15 @@ export async function find_files_by_name(start_dir: fs.PathLike, file_name_to_se
 
 };
 
+export function is_strict_relative_path(path_1: string, path_2: string): boolean {
+    const rel_path = path.relative(path_1, path_2);
+    return (rel_path !== undefined) && (!rel_path.startsWith('..')) && (!path.isAbsolute(rel_path));
 
-// let all_stringtable_files: string[] = []
-// let workspace_folder = vscode.workspace.getWorkspaceFolder(activeEditor.document.uri);
-// if (workspace_folder) {
-//     find_files_by_name(workspace_folder.uri.fsPath, "Stringtable.xml").then((result) => {
-//         console.log(`result: ${result}`)
-
-//         all_stringtable_files = all_stringtable_files.concat(result)
-//         console.log(`all_stringtable_files: ${all_stringtable_files}`)
-
-//     });
+};
 
 
-// };
+
+
+export const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+
