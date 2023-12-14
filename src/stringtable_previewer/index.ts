@@ -16,6 +16,7 @@ import * as utilities from "../utilities";
 import { StringTableDataStorage } from "./storage";
 
 
+
 // endregion[Imports]
 
 
@@ -23,12 +24,14 @@ import { StringTableDataStorage } from "./storage";
 export class StringTableProvider implements vscode.Disposable, vscode.HoverProvider, vscode.DefinitionProvider {
     protected config: vscode.WorkspaceConfiguration;
     protected data: StringTableDataStorage;
+    protected is_loading_data: boolean;
 
 
 
     constructor(config: vscode.WorkspaceConfiguration) {
         this.config = config;
         this.data = new StringTableDataStorage();
+        this.is_loading_data = false;
 
     };
 
@@ -82,7 +85,9 @@ export class StringTableProvider implements vscode.Disposable, vscode.HoverProvi
     };
 
     async provideHover(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): Promise<vscode.Hover | undefined> {
-
+        while (this.is_loading_data === true) {
+            await utilities.sleep(100);
+        };
         if (token.isCancellationRequested) return;
 
 
@@ -105,6 +110,9 @@ export class StringTableProvider implements vscode.Disposable, vscode.HoverProvi
     }
 
     async provideDefinition(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): Promise<vscode.Definition | vscode.LocationLink[] | undefined> {
+        while (this.is_loading_data === true) {
+            await utilities.sleep(100);
+        };
         if (token.isCancellationRequested) return;
 
         if (!this._check_definition_enabled()) return;
@@ -125,8 +133,14 @@ export class StringTableProvider implements vscode.Disposable, vscode.HoverProvi
     }
 
     async load_data(): Promise<void> {
+        while (this.is_loading_data === true) {
+            await utilities.sleep(100);
+        };
+
+        this.is_loading_data = true;
         console.log(`loading stringtable data`)
-        await this.data.load_data();
+
+        this.data.load_data().finally(() => { this.is_loading_data = false });
     };
 
 
@@ -151,6 +165,10 @@ export class StringTableProvider implements vscode.Disposable, vscode.HoverProvi
 
 
     dispose() {
+        if (this.is_loading_data === true) {
+            utilities.sleep(100).finally(() => { this.dispose() });
+            return;
+        };
         this.data.clear();
     }
 };
@@ -180,8 +198,18 @@ export async function activate_sub_extension(context: vscode.ExtensionContext): 
     context.subscriptions.push(vscode.languages.registerHoverProvider(StringTableProvider.hover_selectors, STRINGTABLE_PROVIDER));
     context.subscriptions.push(vscode.languages.registerDefinitionProvider(StringTableProvider.hover_selectors, STRINGTABLE_PROVIDER));
 
-    vscode.workspace.onDidChangeConfiguration(STRINGTABLE_PROVIDER.on_config_changed);
-    vscode.workspace.onDidSaveTextDocument(STRINGTABLE_PROVIDER.on_text_document_saved)
+    context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(STRINGTABLE_PROVIDER.on_config_changed));
+    context.subscriptions.push(vscode.workspace.onDidSaveTextDocument(STRINGTABLE_PROVIDER.on_text_document_saved));
+
+
+    const git_watcher = vscode.workspace.createFileSystemWatcher("**/.git/HEAD");
+
+    git_watcher.onDidChange((uri) => {
+
+        STRINGTABLE_PROVIDER.load_data();
+    })
+
+    context.subscriptions.push(git_watcher);
 
 };
 

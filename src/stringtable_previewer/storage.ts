@@ -194,10 +194,15 @@ export class StringTableDataStorage {
 
         async function _load_from_file(in_file: vscode.Uri): Promise<StringtableFileData> {
             const _stringtable_data = new StringtableFileData(in_file.fsPath);
-            for (let entry of await parse_xml_file_async(in_file)) {
-                _stringtable_data.add_entry(entry);
-            };
+            try {
+                for (let entry of await parse_xml_file_async(in_file)) {
+                    _stringtable_data.add_entry(entry);
+                };
+            } catch (error) {
+                console.warn(`Error occured while processing Stringtable file ${in_file.fsPath}! ${error}`);
+                vscode.window.showErrorMessage(`Error occured while processing Stringtable file '${in_file.fsPath}'! ---------------> ${error}`)
 
+            };
             return _stringtable_data
         };
 

@@ -13,7 +13,7 @@
         "url": "https://github.com/Giddius/antistasi-development-vscode"
     },
     "homepage": "https://github.com/Giddius/antistasi-development-vscode/blob/main/README.md",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "engines": {
         "vscode": "^1.83.0"
     },
@@ -30,7 +30,6 @@
     "extensionKind": [],
     "pricing": "Free",
     "activationEvents": [
-        "onLanguage:sqf",
         "onStartupFinished"
     ],
     "main": "./out/extension.js",
