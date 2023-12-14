@@ -201,7 +201,7 @@ export class StringTableDataStorage {
             return _stringtable_data
         };
 
-        this.data = new Array<StringtableData>();
+
 
         this.data = Array.from(await Promise.all((await vscode.workspace.findFiles("**/Stringtable.xml")).map(_load_from_file)));
 

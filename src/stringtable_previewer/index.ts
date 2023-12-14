@@ -40,7 +40,14 @@ export class StringTableProvider implements vscode.Disposable, vscode.HoverProvi
         if (!event.affectsConfiguration("antistasiDevelopment.stringtable_data", root_workspace_folder)) return;
 
         this.config = vscode.workspace.getConfiguration("antistasiDevelopment.stringtable_data", root_workspace_folder);
+
+    };
+
+    on_text_document_saved = (document: vscode.TextDocument) => {
+        if (path.basename(document.fileName).toLowerCase() !== "stringtable.xml") return;
+
         this.load_data();
+
     };
 
     private _check_hover_enabled(): boolean {
@@ -67,16 +74,11 @@ export class StringTableProvider implements vscode.Disposable, vscode.HoverProvi
         let curr_word = document.getText(range).toLowerCase();
 
 
-        if ((document.languageId === "ext") || (document.languageId === "cpp")) {
 
-            curr_word = curr_word.replace(/^\$/gm, "")
-
-        };
-
-
+        // if ([".cpp", ".hpp", ".ext"].indexOf(path.extname(document.fileName).toLowerCase()) !== -1) {
+        //     curr_word = curr_word.replace(/^\$/gm, "")
+        // };
         return curr_word
-
-
     };
 
     async provideHover(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): Promise<vscode.Hover | undefined> {
@@ -123,31 +125,26 @@ export class StringTableProvider implements vscode.Disposable, vscode.HoverProvi
     }
 
     async load_data(): Promise<void> {
+        console.log(`loading stringtable data`)
         await this.data.load_data();
     };
 
 
     static get hover_selectors(): ReadonlyArray<vscode.DocumentFilter> {
-        const selectors = new Array<vscode.DocumentFilter>({ scheme: "file", language: "cpp" });
-
-        let sqf_language_exists: boolean = false;
-
-        vscode.languages.getLanguages().then((languages) => {
-            if (languages.indexOf("sqf") !== -1) { sqf_language_exists = true; };
-        });
+        const selectors = new Array<vscode.DocumentFilter>();
 
 
-        if (sqf_language_exists) {
-            selectors.push({ scheme: "file", language: "sqf" });
-            selectors.push({ scheme: "file", language: "ext" });
-        } else {
-            selectors.push({ scheme: "file", pattern: "**/*.sqf" });
-            selectors.push({ scheme: "file", pattern: "**/*.ext" });
+        selectors.push({ scheme: "file", pattern: "**/*.sq[fm]" });
+        selectors.push({ scheme: "file", pattern: "**/*.ext" });
+        selectors.push({ scheme: "file", pattern: "**/*.[ch]pp" });
 
-        };
+
+
+
 
 
         const out: ReadonlyArray<vscode.DocumentFilter> = Array.from(selectors);
+
         return out;
     };
 
@@ -184,6 +181,7 @@ export async function activate_sub_extension(context: vscode.ExtensionContext): 
     context.subscriptions.push(vscode.languages.registerDefinitionProvider(StringTableProvider.hover_selectors, STRINGTABLE_PROVIDER));
 
     vscode.workspace.onDidChangeConfiguration(STRINGTABLE_PROVIDER.on_config_changed);
+    vscode.workspace.onDidSaveTextDocument(STRINGTABLE_PROVIDER.on_text_document_saved)
 
 };
 
