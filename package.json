@@ -34,6 +34,9 @@
     ],
     "main": "./out/extension.js",
     "contributes": {
+        "configurationDefaults": {
+            "xml.format.maxLineWidth": 0
+        },
         "snippets": [
             {
                 "language": "sqf",
@@ -61,6 +64,12 @@
                         "default": true,
                         "scope": "window",
                         "description": "Enable getting the definition of a stringtable key."
+                    },
+                    "antistasiDevelopment.stringtable_data.enableUndefinedKeysProblems": {
+                        "type": "boolean",
+                        "default": true,
+                        "scope": "window",
+                        "description": "Enable automatic marking of undefined Stringtable Keys as problems in `sqf`/`ext`/`cpp`/`hpp` files."
                     }
                 }
             }

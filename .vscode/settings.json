@@ -1,5 +1,6 @@
 // Place your settings in this file to overwrite default and user settings.
 {
+    "workbench.colorTheme": "Activate UMBRA protocol",
     "files.exclude": {
         "out": false // set this to true to hide the "out" folder with the compiled JS files
     },
@@ -16,5 +17,5 @@
             ],
             "url": "https://raw.githubusercontent.com/wraith13/vscode-schemas/master/en/latest/schemas/global-snippets.json"
         }
-    ]
+    ],
 }

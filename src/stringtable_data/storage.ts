@@ -26,6 +26,7 @@ export class StringtableEntry {
     package_name: string;
     file_path: string;
     container_name?: string | undefined;
+    protected _location?: vscode.Location | undefined;
 
 
 
@@ -46,15 +47,38 @@ export class StringtableEntry {
 
     async get_location(): Promise<vscode.Location | undefined> {
 
+        if (!this._location) {
+
+            const uri = vscode.Uri.file(this.file_path)
 
 
-        const uri = vscode.Uri.file(this.file_path)
-        const text = (await vscode.workspace.fs.readFile(uri)).toString();
+            const text = (await vscode.workspace.fs.readFile(uri)).toString();
 
 
-        const loc_data = get_location(text, this.key_name)
+            const match_index = text.search(new RegExp(String.raw`(?<=\<Key ID=\")${this.key_name}(?=\"\>)`, "mi"))
 
-        return new vscode.Location(uri, new vscode.Position(loc_data[0], loc_data[1]))
+            const pre_sub_text: string = text.substring(0, match_index)
+
+            const pre_sub_text_lines = pre_sub_text.split(/\r?\n/m)
+
+            const start_line_num = pre_sub_text_lines.length - 1
+
+            const start_char_num = pre_sub_text_lines.pop()!.length - 9
+
+            const post_sub_text: string = text.substring(match_index)
+
+            const end_match_index = post_sub_text.search(/\<\/Key\>/mi)
+
+            const end_sub_text_lines = text.substring(0, match_index + end_match_index).split(/\r?\n/m)
+
+            const end_line_num = end_sub_text_lines.length - 1
+
+            const end_char_num = end_sub_text_lines.pop()!.length;
+
+            this._location = new vscode.Location(uri, new vscode.Range(start_line_num, start_char_num, end_line_num, end_char_num))
+        };
+
+        return this._location
 
     };
 
@@ -74,17 +98,6 @@ export class StringtableEntry {
         text.appendMarkdown(`$(record-small) \`${this.package_name}\`$(arrow-small-right)`)
         if (this.container_name) { text.appendMarkdown(`$(database) \`${this.container_name}\`$(arrow-small-right)`) };
         text.appendMarkdown(`$(key) \`${this.key_name}\`\n\n`)
-        // text.appendMarkdown(`\n\n-------\n\n\n`);
-        // text.appendMarkdown(`- $(file-code) [${file_text}](${vscode.Uri.file(this.file_path)})\n`);
-
-
-
-        // text.appendMarkdown(`- $(key) ${this.key_name}\n`)
-        // text.appendMarkdown(`- $(file-code) [${file_text}](${vscode.Uri.file(this.file_path)})\n`);
-        // text.appendMarkdown(`- $(record-small) ${this.package_name}\n`);
-
-        // if (this.container_name) { text.appendMarkdown(`- $(database) ${this.container_name}\n`) };
-
 
 
         return text;
@@ -137,6 +150,7 @@ class StringtableData {
 
 class StringtableFileData extends StringtableData {
     readonly file_path: string;
+    readonly uri: vscode.Uri;
 
 
 
@@ -144,7 +158,7 @@ class StringtableFileData extends StringtableData {
     constructor(file_path: string) {
         super();
         this.file_path = path.format(path.parse(file_path.toString()));
-
+        this.uri = vscode.Uri.file(this.file_path);
 
     };
 
@@ -175,50 +189,92 @@ class StringtableFileData extends StringtableData {
     };
 
 
+
+    public async reload(): Promise<void> {
+        this.data = new Map<string, StringtableEntry>();
+        try {
+            for (let entry of await parse_xml_file_async(this.uri)) {
+                this.add_entry(entry);
+            };
+        } catch (error) {
+            // console.warn(`Error occured while processing Stringtable file ${in_file.fsPath}! ${error}`);
+            vscode.window.showErrorMessage(`Error occured while processing Stringtable file '${this.file_path}'! ---------------> ${error}`)
+
+        };
+
+
+
+    };
+
 };
 
 
 export class StringTableDataStorage {
 
-    private data: Array<StringtableData>;
+    private dynamic_data: Array<StringtableFileData>;
+    private fixed_data: Array<StringtableData>;
+    private is_loading: boolean;
 
 
     constructor() {
-        this.data = new Array<StringtableData>;
-
+        this.dynamic_data = [];
+        this.fixed_data = [];
+        this.is_loading = false;
 
     };
 
 
-    public async load_data(): Promise<void> {
+    public async load_data(files: vscode.Uri[]): Promise<void> {
+        await this.wait_on_is_loading();
+        this.is_loading = true;
+        try {
+            const tasks: Promise<void>[] = [];
+            const to_add: Array<StringtableFileData> = [];
+            for (let file of files) {
+                let _existing_stringtable_data = this.dynamic_data.filter((value) => { return (value.uri.fsPath === file.fsPath); })[0];
 
-        async function _load_from_file(in_file: vscode.Uri): Promise<StringtableFileData> {
-            const _stringtable_data = new StringtableFileData(in_file.fsPath);
-            try {
-                for (let entry of await parse_xml_file_async(in_file)) {
-                    _stringtable_data.add_entry(entry);
-                };
-            } catch (error) {
-                console.warn(`Error occured while processing Stringtable file ${in_file.fsPath}! ${error}`);
-                vscode.window.showErrorMessage(`Error occured while processing Stringtable file '${in_file.fsPath}'! ---------------> ${error}`)
+                if (_existing_stringtable_data === undefined) {
+                    _existing_stringtable_data = new StringtableFileData(file.fsPath);
+                    to_add.push(_existing_stringtable_data);
+                }
+
+                tasks.push(_existing_stringtable_data.reload())
+
 
             };
-            return _stringtable_data
-        };
-
-
-
-        this.data = Array.from(await Promise.all((await vscode.workspace.findFiles("**/Stringtable.xml")).map(_load_from_file)));
-
+            this.dynamic_data = this.dynamic_data.concat(to_add);
+            await Promise.all(tasks);
+        } finally {
+            this.is_loading = false;
+        }
     };
 
 
+    async all_stringtable_files(): Promise<vscode.Uri[]> {
+        return await vscode.workspace.findFiles("**/Stringtable.xml")
+    };
+
+    public async load_all(): Promise<void> {
+        await this.wait_on_is_loading();
+        this.dynamic_data = [];
+        this.fixed_data = [];
+        await this.load_data(await this.all_stringtable_files())
+    }
 
     public async get_entry(key: string, file: string) {
 
+        await this.wait_on_is_loading();
 
+        for (let _data of this.dynamic_data) {
+            if (!_data.is_responsible(file)) continue;
+            let entry = await _data.get_entry(key);
+            if (entry) {
+                return entry;
+            };
 
-        for (let _data of this.data) {
+        };
+
+        for (let _data of this.fixed_data) {
             if (!_data.is_responsible(file)) continue;
             let entry = await _data.get_entry(key);
             if (entry) {
@@ -229,9 +285,17 @@ export class StringTableDataStorage {
     };
 
 
-    clear() {
+    async wait_on_is_loading(): Promise<void> {
+        while (this.is_loading === true) {
+            await utilities.sleep(100);
+        };
+    };
 
-        this.data = new Array<StringtableData>();
+    clear = () => {
+        this.wait_on_is_loading().then(() => {
+            this.dynamic_data = [];
+            this.fixed_data = [];
+        });
     };
 
 };

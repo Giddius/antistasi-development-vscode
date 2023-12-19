@@ -9,42 +9,6 @@ import * as fs from "fs";
 
 // endregion[Imports]
 
-export function get_file_check_function() {
-
-    let sqf_language_exists: boolean = false;
-
-
-
-
-    vscode.languages.getLanguages().then((languages) => {
-        for (let lang of languages) {
-            if (lang === "sqf") {
-                sqf_language_exists = true;
-                break;
-            };
-        };
-    }).then(undefined, err => {
-        console.error('I am error');
-    });
-
-
-    function check_if_sqf_file_by_language_id(editor: vscode.TextEditor): boolean {
-
-        return (editor.document.languageId === "sqf");
-
-    };
-
-    function check_if_sqf_file_by_file_extension(editor: vscode.TextEditor): boolean {
-        return (path.extname(editor.document.fileName) === ".sqf");
-    };
-
-    if (sqf_language_exists) {
-        return check_if_sqf_file_by_language_id;
-    } else {
-        return check_if_sqf_file_by_file_extension;
-    };
-
-};
 
 
 export async function* walk(directory_path: fs.PathLike): AsyncGenerator<string> {
