@@ -30,3 +30,15 @@ All notable changes to the "antistasi-development" extension will be documented 
 
 - Malformed `Stringtable.xml`-files will now not prevent loading data from non-malformed `Stringtable.xml`-files.
 - Stringtable Data is now reloaded when git-branch is changed.
+
+
+
+
+
+## [0.2.0] - 2023-12-19
+
+### Added
+
+#### Stringtable-Data
+
+- Stringtable keys that are not defined in a `Stringtable.xml`-file are now marked as problems.
