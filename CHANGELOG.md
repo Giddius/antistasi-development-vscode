@@ -42,3 +42,21 @@ All notable changes to the "antistasi-development" extension will be documented 
 #### Stringtable-Data
 
 - Stringtable keys that are not defined in a `Stringtable.xml`-file are now marked as problems.
+
+
+## [0.2.1] - 2023-12-25
+
+### Fixed
+
+#### Stringtable-Data
+
+- `<br/>` are now correctly transformed to `\n` in the preview of the stringtable-key value.
+
+- Now also works in `.inc` files and other file extensions can be added via the setting `antistasiDevelopment.stringtable_data.extraFileNameExtensions`, but this requires a restart to take effect.
+
+
+### Added
+
+#### Stringtable-Data
+
+- Preview now shows the amount of replacement placeholder and a list of them.

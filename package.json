@@ -13,7 +13,7 @@
         "url": "https://github.com/Giddius/antistasi-development-vscode"
     },
     "homepage": "https://github.com/Giddius/antistasi-development-vscode/blob/main/README.md",
-    "version": "0.2.0",
+    "version": "0.2.1",
     "engines": {
         "vscode": "^1.83.0"
     },
@@ -30,7 +30,7 @@
     "extensionKind": [],
     "pricing": "Free",
     "activationEvents": [
-        "onStartupFinished"
+        "workspaceContains:**/[Ss]tringtable.xml"
     ],
     "main": "./out/extension.js",
     "contributes": {
@@ -70,6 +70,19 @@
                         "default": true,
                         "scope": "window",
                         "description": "Enable automatic marking of undefined Stringtable Keys as problems in `sqf`/`ext`/`cpp`/`hpp` files."
+                    },
+                    "antistasiDevelopment.stringtable_data.undefinedKeysToIgnore": {
+                        "type": "array",
+                        "default": [],
+                        "scope": "window",
+                        "description": "Stringtable key names that should never be marked as problems even if they are undefined."
+                    },
+                    "antistasiDevelopment.stringtable_data.extraFileNameExtensions": {
+                        "type": "array",
+                        "default": [],
+                        "scope": "window",
+                        "markdownDescription": "Extra file extensions where the functionality of `stringtable_data` should be applied to(each entry has to include the dot, ie: `.rst` or `.py`).\n**REQUIRES RESTART**",
+                        "pattern": "\\.[a-zA-Z\\d]+"
                     }
                 }
             }

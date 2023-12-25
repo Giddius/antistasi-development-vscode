@@ -10,6 +10,7 @@
 		"sourceMap": true,
 		"rootDir": "src",
 		"strict": true,
+		"diagnostics": true
 	},
 	"exclude": [
 		"temp/**"

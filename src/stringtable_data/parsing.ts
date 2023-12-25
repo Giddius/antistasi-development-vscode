@@ -23,8 +23,19 @@ export function get_location(full_text: string, target_text: string): number[] {
     return [line_num, char_num, target_text.length];
 }
 
+class XMLResult {
+    readonly xml_obj: any;
+    readonly found_keys: StringtableEntry[];
+
+
+    constructor (xml_obj:any, found_keys:StringtableEntry[]) {
+        this.xml_obj = xml_obj;
+        this.found_keys = found_keys;
+    }
+}
+
 export async function parse_xml_file_async(file: vscode.Uri) {
-    const xml_text = (await vscode.workspace.fs.readFile(file)).toString();
+    const xml_text = await vscode.workspace.fs.readFile(file);
     let all_keys = new Array<StringtableEntry>();
 
     const result = await xml2js.parseStringPromise(xml_text)
@@ -37,7 +48,7 @@ export async function parse_xml_file_async(file: vscode.Uri) {
                 const _id: string = key.$.ID;
                 const _value: string = key.Original[0]
 
-                const text_pos = get_location(xml_text, _id);
+
 
 
 
@@ -47,5 +58,5 @@ export async function parse_xml_file_async(file: vscode.Uri) {
 
     }
 
-    return all_keys;
+    return new XMLResult(result, all_keys);
 };

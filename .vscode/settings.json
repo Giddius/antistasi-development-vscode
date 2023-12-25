@@ -10,6 +10,10 @@
     // Turn off tsc task auto detection since we have the necessary tasks as npm scripts
     "typescript.tsc.autoDetect": "off",
     "testExplorer.useNativeTesting": false,
+    "typescript.format.insertSpaceAfterConstructor": true,
+    "typescript.format.insertSpaceBeforeFunctionParenthesis": true,
+    "typescript.format.semicolons": "insert",
+    "typescript.preferences.quoteStyle": "double",
     "json.schemas": [
         {
             "fileMatch": [
