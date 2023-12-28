@@ -13,10 +13,11 @@
         "url": "https://github.com/Giddius/antistasi-development-vscode"
     },
     "homepage": "https://github.com/Giddius/antistasi-development-vscode/blob/main/README.md",
-    "version": "0.2.1",
+    "version": "0.3.0.dev",
     "engines": {
         "vscode": "^1.83.0"
     },
+    "enableTelemetry": false,
     "categories": [
         "Snippets",
         "Other"
@@ -28,12 +29,56 @@
     ],
     "preview": true,
     "extensionKind": [],
+    "extensionDependencies": [
+        "vscode.git"
+    ],
     "pricing": "Free",
     "activationEvents": [
-        "workspaceContains:**/[Ss]tringtable.xml"
+        "workspaceContains:**/[Ss][Tt][Rr][Ii][Nn][Gg][Tt][Aa][Bb][Ll][Ee].[Xx][Mm][Ll]",
+        "workspaceContains:**/*.[Ss][Qq][Ff]",
+        "onStartupFinished"
     ],
     "main": "./out/extension.js",
     "contributes": {
+        "submenus": [
+            {
+                "id": "antistasiDevelopment.stringtable_menu",
+                "label": "Antistasi Development: Stringtable"
+            }
+        ],
+        "commands": [
+            {
+                "command": "antistasi.insert-stringtable-key",
+                "title": "Insert stringtable key",
+                "category": "antistasiDevelopmentStringtable"
+            },
+            {
+                "command": "antistasi.convert-to-stringtable-key",
+                "title": "Antistasi Development: convert to stringtable key",
+                "category": "antistasiDevelopmentStringtable",
+                "shortTitle": "convert to stringtable key"
+            }
+        ],
+        "menus": {
+            "editor/context": [
+                {
+                    "submenu": "antistasiDevelopment.stringtable_menu",
+                    "group": "stringtable"
+                }
+            ],
+            "antistasiDevelopment.stringtable_menu": [
+                {
+                    "command": "antistasi.convert-to-stringtable-key",
+                    "when": "resourceScheme == file && resourceExtname in antistasiDevelopment.supportedFileextensions",
+                    "group": "stringtable"
+                },
+                {
+                    "command": "antistasi.insert-stringtable-key",
+                    "when": "resourceScheme == file && resourceExtname in antistasiDevelopment.supportedFileextensions",
+                    "group": "stringtable"
+                }
+            ]
+        },
         "configurationDefaults": {
             "xml.format.maxLineWidth": 0
         },
@@ -95,22 +140,25 @@
         "pretest": "npm run compile && npm run lint",
         "lint": "eslint src --ext ts",
         "test": "node ./out/test/runTest.js",
-        "publish": "npm run compile && vsce package"
+        "publish": "npm run compile && vsce package",
+        "publish_prerelease": "npm run compile && vsce package --pre-release"
     },
     "devDependencies": {
-        "@types/vscode": "^1.83.0",
+        "@types/async-lock": "^1.4.2",
         "@types/mocha": "^10.0.2",
         "@types/node": "18.x",
+        "@types/vscode": "^1.83.0",
+        "@types/xml2js": "^0.4.14",
         "@typescript-eslint/eslint-plugin": "^6.7.3",
         "@typescript-eslint/parser": "^6.7.3",
-        "@types/xml2js": "^0.4.14",
+        "@vscode/test-electron": "^2.3.4",
         "eslint": "^8.50.0",
         "glob": "^10.3.3",
         "mocha": "^10.2.0",
-        "typescript": "^5.2.2",
-        "@vscode/test-electron": "^2.3.4"
+        "typescript": "^5.2.2"
     },
     "dependencies": {
+        "async-lock": "^1.4.1",
         "xml2js": "^0.6.2"
     }
 }

@@ -1,7 +1,7 @@
 // region[Imports]
 
 import * as vscode from 'vscode';
-import { parse_xml_file_async, get_location } from "./parsing";
+import { parse_xml_file_async, get_location, add_to_stringtable_file } from "./parsing";
 
 
 
@@ -12,6 +12,8 @@ import * as fs from "fs";
 
 import * as utilities from "../utilities";
 
+
+import * as AsyncLock from "async-lock";
 
 // endregion[Imports]
 
@@ -95,7 +97,6 @@ export class StringtableEntry {
 
         const string_value: string = this.text.replace(/<br\/>/gm, "\n").replace(/%\d+/gm, "**`$&`**");
 
-
         text.appendMarkdown(string_value);
 
         text.appendMarkdown(`\n\n-------\n\n\n`);
@@ -158,6 +159,11 @@ class StringtableData {
 
     };
 
+    public has_entry (key: string): boolean {
+        const normalized_key: string = this._normalize_key(key);
+        return this.data.has(normalized_key);
+    }
+
 
     public is_responsible (in_file: string): boolean {
         return true;
@@ -169,6 +175,10 @@ class StringtableData {
     };
 
 
+    public async reload (): Promise<StringtableData> {
+        return this;
+    };
+
     get [Symbol.toStringTag] () {
 
         return this.constructor.name;
@@ -178,6 +188,8 @@ class StringtableData {
 class StringtableFileData extends StringtableData {
     readonly file_path: string;
     readonly uri: vscode.Uri;
+    public all_container_names: Array<string>;
+    public is_parseable: boolean;
 
 
 
@@ -186,7 +198,8 @@ class StringtableFileData extends StringtableData {
         super();
         this.uri = file instanceof vscode.Uri ? file : vscode.Uri.file(file);
         this.file_path = path.normalize(this.uri.fsPath);
-
+        this.all_container_names = [];
+        this.is_parseable = true;
     };
 
 
@@ -219,21 +232,26 @@ class StringtableFileData extends StringtableData {
 
 
 
-    public async reload (): Promise<void> {
+    public async reload (): Promise<StringtableFileData> {
+
+
         this.clear();
+        this.all_container_names = [];
         try {
             const result = await parse_xml_file_async(this.uri);
             for (let entry of result.found_keys) {
                 this.add_entry(entry);
+
             };
+            this.all_container_names = Array.from(result.found_container_names);
         } catch (error) {
 
             vscode.window.showErrorMessage(`Error occured while processing Stringtable file '${this.file_path}'! ---------------> ${error}`);
-
+            console.error(`Error occured while processing Stringtable file '${this.file_path}'! ---------------> ${error}`);
+            this.is_parseable = false;
         };
 
-
-
+        return this;
     };
     get [Symbol.toStringTag] () {
 
@@ -246,22 +264,41 @@ export class StringTableDataStorage {
 
     private dynamic_data: Array<StringtableFileData>;
     private fixed_data: Array<StringtableData>;
-    private is_loading: boolean;
+
+    private loading_listeners: Array<CallableFunction>;
+    private readonly lock: AsyncLock;
 
 
     constructor () {
+        this.lock = new AsyncLock();
         this.dynamic_data = [];
         this.fixed_data = [];
-        this.is_loading = false;
+        this.loading_listeners = [];
 
     };
 
 
-    public async load_data (files: vscode.Uri[]): Promise<void> {
-        await this.wait_on_is_loading();
-        this.is_loading = true;
-        try {
-            const tasks: Promise<void>[] = [];
+    public get all_stringtable_names (): string[] {
+
+        return this.dynamic_data.map((value) => value.name);
+    };
+
+
+
+    public get all_stringtable_paths (): string[] {
+        return this.dynamic_data.map((value) => value.file_path);
+    };
+
+
+
+    public get all_stringtable_file_data_items (): StringtableFileData[] {
+        return Array.from(this.dynamic_data);
+    }
+
+    public async load_data (files: vscode.Uri[]): Promise<StringtableFileData[]> {
+        return await this.lock.acquire("data", async () => {
+
+            const tasks: Promise<StringtableFileData>[] = [];
             const to_add: Array<StringtableFileData> = [];
             const _dynamic_data_map: ReadonlyMap<string, StringtableFileData> = new Map<string, StringtableFileData>(this.dynamic_data.map((item) => [item.uri.path, item]));
             for (let file of files) {
@@ -277,86 +314,136 @@ export class StringTableDataStorage {
 
             };
             this.dynamic_data = this.dynamic_data.concat(to_add);
-            await Promise.all(tasks);
-        } finally {
-            this.is_loading = false;
-        }
+            this.signal_reloaded();
+            return await Promise.all(tasks);
+
+        });
     };
 
-
-    async all_stringtable_files (): Promise<vscode.Uri[]> {
+    async find_all_stringtable_files (): Promise<vscode.Uri[]> {
         return await vscode.workspace.findFiles("**/Stringtable.xml");
     };
 
     public async load_all (): Promise<void> {
 
-        await this.wait_on_is_loading();
-        this.dynamic_data = [];
-        this.fixed_data = [];
-        await this.load_data(await this.all_stringtable_files());
+        this.dynamic_data = Array.from(await this.load_data(await this.find_all_stringtable_files()));
 
-    }
+    };
 
-    public async get_entry (key: string, file: string) {
+    public async get_data_item_for_file (file: vscode.Uri): Promise<StringtableFileData | undefined> {
+        return this.dynamic_data.filter((value) => { return value.is_responsible(file.fsPath); }).at(0);
+    };
+    public async get_data_item_for_name (name: string): Promise<StringtableFileData | undefined> {
+        return this.dynamic_data.filter((value) => { return (value.name.toLowerCase() === name.toLowerCase()); }).at(0);
+    };
+    public async get_entry (key: string, file?: string) {
 
-        await this.wait_on_is_loading();
+        return await this.lock.acquire("data", async () => {
 
-        for (let _data of Array.from(this.dynamic_data).sort((a, b) => Number(a.is_responsible(file)) - Number((b.is_responsible(file))))) {
-            // if (!_data.is_responsible(file)) continue;
-            let entry = await _data.get_entry(key);
-            if (entry) {
-                return entry;
+            let dynamic_data = Array.from(this.dynamic_data);
+
+            if (file) {
+                dynamic_data = dynamic_data.sort((a, b) => Number(a.is_responsible(file)) - Number((b.is_responsible(file))));
+            }
+
+            for (let _data of dynamic_data) {
+
+                let entry = await _data.get_entry(key);
+                if (entry) {
+                    return entry;
+                };
+
             };
 
-        };
+            let fixed_data = Array.from(this.fixed_data);
+            if (file) {
+                fixed_data = fixed_data.sort((a, b) => Number(a.is_responsible(file)) - Number((b.is_responsible(file))));
+            }
 
-        for (let _data of Array.from(this.fixed_data).sort((a, b) => Number(a.is_responsible(file)) - Number((b.is_responsible(file))))) {
-            // if (!_data.is_responsible(file)) continue;
-            let entry = await _data.get_entry(key);
-            if (entry) {
-                return entry;
+            for (let _data of fixed_data) {
+                let entry = await _data.get_entry(key);
+                if (entry) {
+                    return entry;
+                };
+
             };
 
-        };
+        }
+        );
     };
 
 
-    public async wait_on_is_loading (): Promise<void> {
-        while (this.is_loading === true) {
-            await utilities.sleep(100);
-        };
-    };
+
 
     public async clear (): Promise<void> {
 
 
-        await this.wait_on_is_loading().then(() => {
+        return await this.lock.acquire("data", async () => {
 
             this.dynamic_data = [];
             this.fixed_data = [];
+
 
         });
 
     };
 
+    on_git_branch_changed = async (uri: vscode.Uri) => {
+        await this.load_all();
+    };
+
+    on_stringtable_file_changed = async (uri: vscode.Uri) => {
+        await this.load_data([uri]);
+
+
+
+    };
+
+    on_stringtable_file_deleted = async (uri: vscode.Uri) => {
+
+        const new_dynamic_data = this.dynamic_data.filter((value) => (path.normalize(value.uri.path) !== path.normalize(uri.path)));
+
+    };
+
+
+    on_stringtable_file_saved = async (document: vscode.TextDocument) => {
+        if (path.basename(document.uri.fsPath).toLowerCase() !== "stringtable.xml") return;
+
+
+        await this.load_data([document.uri]);
+    };
 
     public async register (): Promise<vscode.Disposable[]> {
         const disposables: vscode.Disposable[] = [];
 
 
-        await this.load_all();
-        const git_watcher = vscode.workspace.createFileSystemWatcher("**/.git/HEAD");
 
-        git_watcher.onDidChange((uri) => {
+        const git_watcher = vscode.workspace.createFileSystemWatcher(utilities.convert_to_case_insensitive_glob_pattern("**/.git/HEAD"), undefined, undefined, true);
 
-            this.load_all();
-        });
+        git_watcher.onDidChange(this.on_git_branch_changed);
+        git_watcher.onDidCreate(this.on_git_branch_changed);
 
         disposables.push(git_watcher);
 
+        const stringtable_watcher = vscode.workspace.createFileSystemWatcher(utilities.convert_to_case_insensitive_glob_pattern("**/stringtable.xml"));
 
+        stringtable_watcher.onDidChange(this.on_stringtable_file_changed);
+        stringtable_watcher.onDidDelete(this.on_stringtable_file_deleted);
+        stringtable_watcher.onDidCreate(this.on_stringtable_file_changed);
+
+        disposables.push(stringtable_watcher);
         return disposables;
     };
+
+    private async signal_reloaded (): Promise<void> {
+        await Promise.all(this.loading_listeners.map((item) => Promise.resolve(item(this))));
+    };
+
+    register_loading_listener (listener: Function) {
+        if (this.loading_listeners.includes(listener)) return;
+        this.loading_listeners.push(listener);
+    };
+
     get [Symbol.toStringTag] () {
 
         return this.constructor.name;
@@ -364,4 +451,4 @@ export class StringTableDataStorage {
 };
 
 
-
+;
