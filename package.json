@@ -28,10 +28,10 @@
         "Arma"
     ],
     "preview": true,
-    "extensionKind": [],
-    "extensionDependencies": [
-        "vscode.git"
+    "extensionKind": [
+        "workspace"
     ],
+    "extensionDependencies": [],
     "pricing": "Free",
     "activationEvents": [
         "workspaceContains:**/[Ss][Tt][Rr][Ii][Nn][Gg][Tt][Aa][Bb][Ll][Ee].[Xx][Mm][Ll]",
@@ -49,14 +49,21 @@
         "commands": [
             {
                 "command": "antistasi.insert-stringtable-key",
-                "title": "Insert stringtable key",
-                "category": "antistasiDevelopmentStringtable"
+                "title": "insert new stringtable key",
+                "category": "Antistasi-Development-Stringtable",
+                "shortTitle": "insert"
             },
             {
                 "command": "antistasi.convert-to-stringtable-key",
-                "title": "Antistasi Development: convert to stringtable key",
-                "category": "antistasiDevelopmentStringtable",
-                "shortTitle": "convert to stringtable key"
+                "title": "convert to stringtable key",
+                "category": "Antistasi-Development-Stringtable",
+                "shortTitle": "convert"
+            },
+            {
+                "command": "antistasi.scan-for-all-undefined-stringtable-keys",
+                "title": "scan for all undefined stringtable keys",
+                "category": "Antistasi-Development-Stringtable",
+                "shortTitle": "scan undefined stringtable keys"
             }
         ],
         "menus": {
@@ -134,6 +141,7 @@
         ]
     },
     "scripts": {
+        "precompile": "node ./tools/setup_compile.js ./",
         "vscode:prepublish": "npm run compile",
         "compile": "tsc -p ./",
         "watch": "tsc -watch -p ./",
@@ -145,20 +153,30 @@
     },
     "devDependencies": {
         "@types/async-lock": "^1.4.2",
+        "@types/fs-extra": "^11.0.4",
         "@types/mocha": "^10.0.2",
         "@types/node": "18.x",
         "@types/vscode": "^1.83.0",
         "@types/xml2js": "^0.4.14",
-        "@typescript-eslint/eslint-plugin": "^6.7.3",
-        "@typescript-eslint/parser": "^6.7.3",
+        "@types/sqlite3": "^3.1.11",
+        "@typescript-eslint/eslint-plugin": "^6.18.1",
+        "@typescript-eslint/parser": "^6.18.1",
         "@vscode/test-electron": "^2.3.4",
-        "eslint": "^8.50.0",
+        "@vscode/vsce": "^2.22.0",
+        "eslint": "^8.56.0",
+        "eslint-config-prettier": "^9.1.0",
         "glob": "^10.3.3",
+        "minimatch": "^9.0.3",
         "mocha": "^10.2.0",
-        "typescript": "^5.2.2"
+        "mocha-explorer-launcher-scripts": "^0.4.0",
+        "prettier": "^3.2.1",
+        "typescript": "^5.3.3"
     },
     "dependencies": {
         "async-lock": "^1.4.1",
+        "fs-extra": "^11.2.0",
+        "sqlite": "^5.1.1",
+        "sqlite3": "^5.1.7",
         "xml2js": "^0.6.2"
     }
 }

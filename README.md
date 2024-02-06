@@ -17,3 +17,5 @@ VSCode extension to help with the development of the Arma 3 mod [__Antistasi__](
 
 - Snippets
     - Interactive snippet for the sqf-function header-comment (snippet-name: `header_comment`)
+
+        ![Header Comment Snippet](images/gifs/header_comment_snippet_presentation.gif)

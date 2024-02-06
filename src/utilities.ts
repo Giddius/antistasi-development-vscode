@@ -4,7 +4,9 @@
 
 import * as vscode from 'vscode';
 import * as path from "path";
-import * as fs from "fs";
+import * as fs from "fs-extra";
+
+import * as rd from "readline";
 
 
 // endregion[Imports]
@@ -120,7 +122,7 @@ export function resolve_sqf_string (in_string: string): string {
 
 
         if (/^\* ?\d+$/m.test(_match)) {
-            if (last_part === undefined) throw Error("Cannot multiply with no previous part");
+            if (last_part === undefined) { throw Error("Cannot multiply with no previous part"); }
 
             for (let i = 0; i < Number(_match.replace(/\*/m, "").trim()); i++) {
                 parts.push(last_part);
@@ -140,3 +142,75 @@ export function resolve_sqf_string (in_string: string): string {
     return parts.join("");
 
 };
+
+
+
+
+export function make_auto_pretty_name (in_name: string): string {
+
+
+    const words: string[] = in_name.split(/[\-\_]+/gm);
+
+
+    const capitalized_words: string[] = words.map((word) => { return word[0].toUpperCase() + word.substring(1); });
+
+
+
+    return capitalized_words.join("-");
+}
+
+
+
+
+
+
+
+
+export async function* iter_file_lines (in_file: string, include_newline: boolean = false): AsyncGenerator<string> {
+    const stream = fs.createReadStream(in_file, "utf-8");
+
+    const reader = rd.createInterface({ input: stream, crlfDelay: Infinity });
+
+
+
+
+    if (include_newline) {
+        for await (const line of reader) {
+            yield line + "\n";
+        }
+    } else {
+        for await (const line of reader) {
+            yield line;
+        }
+    };
+
+
+
+
+
+};
+
+
+export async function* iter_text_document_lines (in_document: vscode.TextDocument, include_newline: boolean = false): AsyncGenerator<vscode.TextLine> {
+
+    for (let line_number = 0; line_number < in_document.lineCount; line_number++) {
+        yield in_document.lineAt(line_number);
+    };
+}
+export async function* enumerate<T> (in_iterator: AsyncIterable<T> | Iterable<T>, start: number = 0): AsyncGenerator<[number, T]> {
+    let _counter = start;
+
+    if (Symbol.asyncIterator in in_iterator) {
+        for await (const item of in_iterator) {
+            yield [_counter, item];
+            _counter++;
+
+        };
+    } else {
+        for (const item of in_iterator) {
+            yield [_counter, item];
+            _counter++;
+        };
+    };
+}
+

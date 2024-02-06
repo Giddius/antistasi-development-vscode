@@ -3,21 +3,26 @@
 
 import * as vscode from 'vscode';
 
+import { ALL_SUB_EXTENSIONS, ALL_ENABLED_SUB_EXTENSIONS, activate_all_sub_extensions, deactivate_all_sub_extensions } from "./sub_extensions";
+import * as stringtable_data from "./sub_extensions/stringtable_data/index";
+import { SubExtension } from "./typings/general";
 
-import * as stringtable_data from "./stringtable_data";
+import * as utils from "./utilities";
+
 
 // endregion[Imports]
 
-const SUB_EXTENSIONS = [stringtable_data];
 
 
-export async function activate (context: vscode.ExtensionContext) {
 
 
-	if (!vscode.workspace.workspaceFolders) return;
-	if (vscode.workspace.workspaceFolders.length <= 0) return;
-	await Promise.all(SUB_EXTENSIONS.map((value) => value.activate_sub_extension(context)));
+export async function activate (context: vscode.ExtensionContext): Promise<any> {
 
+
+
+	if (!utils.is_inside_workspace()) { return; };
+
+	await activate_all_sub_extensions(context);
 
 
 
@@ -25,6 +30,7 @@ export async function activate (context: vscode.ExtensionContext) {
 
 // This method is called when your extension is deactivated
 export async function deactivate () {
-	await Promise.all(SUB_EXTENSIONS.map((value) => value.deactivate_sub_extension()));
+
+	await deactivate_all_sub_extensions();
 
 }
