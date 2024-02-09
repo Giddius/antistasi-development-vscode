@@ -60,3 +60,27 @@ All notable changes to the "antistasi-development" extension will be documented 
 #### Stringtable-Data
 
 - Preview now shows the amount of replacement placeholder and a list of them.
+
+
+
+## [0.4.0] - 2024-2-08
+
+
+### Fixed
+
+#### Stringtable-Data
+
+- `Stringtable.xml`-file parsing does not error anymore if the file does not contain a `Container`, it also does not error if the file does not contain a `Package` not even if it is missing a `Project`.
+
+### Added
+
+#### Stringtable-Data
+
+
+
+- command `scan-for-all-undefined-stringtable-keys` to check all files for undefined stringtable-keys and present them in a special view that also has the ability to save this data in multiple formats.
+
+- command `convert-to-stringtable-key` to convert a selected string to a stringtable key. This puts the string into the `Stringtable.xml`-file and also replaces the string in the original file with a `translate` + the new stringtable-key.
+
+- command `insert-stringtable-key` to create a new stringtable-key in the `Stringtable.xml`-file. This is also available as `Quick fix` when encountering undefined stringtable-keys.
+

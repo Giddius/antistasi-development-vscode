@@ -13,7 +13,7 @@
         "url": "https://github.com/Giddius/antistasi-development-vscode"
     },
     "homepage": "https://github.com/Giddius/antistasi-development-vscode/blob/main/README.md",
-    "version": "0.3.1",
+    "version": "0.4.0",
     "engines": {
         "vscode": "^1.83.0"
     },
@@ -76,12 +76,7 @@
             "antistasiDevelopment.stringtable_menu": [
                 {
                     "command": "antistasi.convert-to-stringtable-key",
-                    "when": "resourceScheme == file && resourceExtname in antistasiDevelopment.supportedFileextensions",
-                    "group": "stringtable"
-                },
-                {
-                    "command": "antistasi.insert-stringtable-key",
-                    "when": "resourceScheme == file && resourceExtname in antistasiDevelopment.supportedFileextensions",
+                    "when": "(resourceScheme == file && resourceExtname in antistasiDevelopment.supportedFileextensions)&&(editorTextFocus)&&(!editorReadonly)",
                     "group": "stringtable"
                 }
             ]
@@ -156,13 +151,13 @@
         "@types/fs-extra": "^11.0.4",
         "@types/mocha": "^10.0.2",
         "@types/node": "18.x",
+        "@types/sqlite3": "^3.1.11",
         "@types/vscode": "^1.83.0",
         "@types/xml2js": "^0.4.14",
-        "@types/sqlite3": "^3.1.11",
         "@typescript-eslint/eslint-plugin": "^6.18.1",
         "@typescript-eslint/parser": "^6.18.1",
         "@vscode/test-electron": "^2.3.4",
-        "@vscode/vsce": "^2.22.0",
+        "@vscode/vsce": "^2.23.0",
         "eslint": "^8.56.0",
         "eslint-config-prettier": "^9.1.0",
         "glob": "^10.3.3",

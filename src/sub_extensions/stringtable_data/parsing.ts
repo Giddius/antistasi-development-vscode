@@ -78,12 +78,13 @@ export async function parse_xml_file_async (file: vscode.Uri): Promise<XMLResult
     let all_container_names = new Set<string>();
 
     const result = await xml2js.parseStringPromise(xml_text, { chunkSize: 1 * 1000, async: true });
+    if ((!result) || (!result.Project) || (!result.Project.Package)) { return { found_keys: all_keys, found_container_names: Array.from(all_container_names).sort() }; }
     for (let _package of result.Project.Package) {
+        if (!_package.Container) { continue; }
+
         for (let container of _package.Container) {
             all_container_names.add(container.$.name);
-            if (!container.Key) {
-                continue;
-            }
+            if (!container.Key) { continue; }
 
             for (let key of container.Key) {
                 const _id: string = key.$.ID;

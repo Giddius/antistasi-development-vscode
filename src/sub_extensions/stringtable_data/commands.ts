@@ -178,6 +178,7 @@ export class ConvertToStringtableKeyCommand extends BaseCommand<void> {
 
             };
 
-        });
+
+        }).then(() => { editor.document.save(); });
     }
 };

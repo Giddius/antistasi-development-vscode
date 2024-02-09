@@ -23,6 +23,8 @@ export class FoundKey {
     specific_id: string;
 
 
+
+
     constructor (text: string, line_number: number, start_index: number, end_index: number, file: string) {
         this.text = text;
         this.range = new vscode.Range(line_number, start_index, line_number, end_index);
@@ -30,16 +32,25 @@ export class FoundKey {
         this.specific_id = randomUUID().toString();
     };
 
+    public get relative_path (): string {
+        return vscode.workspace.asRelativePath(this.file);
+    };
 
-    public get json_string_data (): string {
-        return JSON.stringify({
+    public get json_data () {
+        return {
             name: this.text,
             file: this.file,
+            relative_path: this.relative_path,
             start_line: this.range.start.line,
             start_char: this.range.start.character,
             end_line: this.range.end.line,
             end_char: this.range.end.character
-        });
+        };
+    };
+
+
+    public get json_string_data (): string {
+        return JSON.stringify(this.json_data);
     };
 
 
@@ -170,8 +181,13 @@ export class StringTableProvider implements vscode.HoverProvider, vscode.Definit
             let files = await vscode.workspace.findFiles(pattern);
 
             for (let file of files) {
-                if (!open_file_paths.includes(path.normalize(file.fsPath))) { continue; }
-                tasks.push(this.handle_problems(file));
+                if ((this.diagnostic_collection.has(file)) || ((open_file_paths.includes(path.normalize(file.fsPath))))) {
+                    tasks.push(this.handle_problems(file));
+                    await utils.sleep(25);
+                } else {
+                    this.diagnostic_collection.delete(file);
+                }
+
             };
         };
         await Promise.all(tasks);
@@ -345,7 +361,7 @@ export class StringTableProvider implements vscode.HoverProvider, vscode.Definit
             for (const match of in_line.matchAll(regex)) {
                 if (match[0].endsWith("+")) { continue; };
                 yield new FoundKey(clean_text(match[0]), in_line_number, match.indices![0][0], match.indices![0][1], file.fsPath);
-                await utils.sleep(1);
+                await utils.sleep(0);
             };
 
 
@@ -358,7 +374,7 @@ export class StringTableProvider implements vscode.HoverProvider, vscode.Definit
 
 
 
-        await new Promise<void>(r => setTimeout(r, 100));
+        await new Promise<void>(r => setTimeout(r, 1));
 
 
         const diagnostic_items = new Array<vscode.Diagnostic>();
@@ -403,7 +419,7 @@ export class StringTableProvider implements vscode.HoverProvider, vscode.Definit
                     diagnostic_items.push(diagnostic_item);
                     all_undefined_keys.push(found_key);
                 }
-                await utils.sleep(1);
+                await utils.sleep(0);
             };
 
 
@@ -425,6 +441,7 @@ export class StringTableProvider implements vscode.HoverProvider, vscode.Definit
             this.problems_handling_timeouts.set(file, timeout);
 
         };
+        await utils.sleep(25);
         return all_undefined_keys;
 
     };
@@ -490,8 +507,9 @@ export class StringTableProvider implements vscode.HoverProvider, vscode.Definit
 
         await this.data.load_all();
         // const file_glob = new glob.Glob(`A3A/**/*.{${this.allowed_file_name_extensions.map((v) => v.replace(/^\./gm, "")).join(",")}}`, { absolute: true, cwd: utils.get_base_workspace_folder()?.uri.fsPath });
-        const all_file_uris = (await vscode.workspace.findFiles(`A3A/**/*.{${this.allowed_file_name_extensions.map((v) => v.replace(/^\./gm, "")).join(",")}}`));
-        // .filter((value) => fs.statSync(value.fsPath).size <= (5000 * 1000))
+        const all_file_uris = (await vscode.workspace.findFiles(`A3A/**/*.{${this.allowed_file_name_extensions.map((v) => v.replace(/^\./gm, "")).join(",")}}`))
+            .sort((a, b) => a.fsPath.toLowerCase().localeCompare(b.fsPath.toLowerCase()));
+        // .filter((value) => fs.statSync(value.fsPath).size <= (250 * 1000));
         // .sort((a, b) => fs.statSync(b.fsPath).size - fs.statSync(a.fsPath).size);
         // .sort(() => randomInt(0, 1) - 0.5);
         const tasks: Promise<any>[] = [];
@@ -529,13 +547,12 @@ export class StringTableProvider implements vscode.HoverProvider, vscode.Definit
 
                 };
 
-                console.log("gathered all");
                 if (!token.isCancellationRequested) {
                     await utils.sleep(100);
                     await Promise.all(tasks);
-                    await utils.sleep(1000);
+                    await utils.sleep(100);
                     create_undefined_stringtable_keys_result_web_view(_all_undefined_keys);
-                    await utils.sleep(2 * 1000);
+                    await utils.sleep(2 * 100);
 
                 };
 

@@ -9,6 +9,7 @@ import * as utilities from "../utilities";
 import { FoundKey } from "../sub_extensions/stringtable_data/provider";
 import { text } from "node:stream/consumers";
 import { TIMEOUT } from "dns";
+import { prototype } from "events";
 
 // endregion[Imports]
 
@@ -20,6 +21,117 @@ import { TIMEOUT } from "dns";
 
 //     }
 // };
+
+
+function _found_keys_sort_func (a: FoundKey, b: FoundKey): number {
+
+    return a.text.toLowerCase().localeCompare(b.text.toLowerCase());
+};
+
+
+function output_format (key: string) {
+    return function (target: any, propertyKey: string, descriptor?: PropertyDescriptor) {
+
+        target.constructor.output_format_name_map.set(key, propertyKey);
+
+    };
+};
+
+class FoundKeysWriter {
+
+    readonly found_keys: FoundKey[];
+    readonly output_format_map: Map<string, () => string>;
+    static output_format_name_map: Map<string, string> = new Map();
+
+    constructor (found_keys: FoundKey[]) {
+        this.found_keys = Array.from(found_keys).sort(_found_keys_sort_func);
+        this.output_format_map = new Map(Array.from(FoundKeysWriter.output_format_name_map.entries()).map((item) => { return [item[0], (this[item[1] as keyof typeof this] as () => string).bind(this)]; }));
+    };
+
+
+    static get_filters () {
+        let filters: {
+            [name: string]: string[];
+        } = {};
+        for (const entry of Array.from(this.output_format_name_map.entries()).sort((a, b) => { if (a[0] === "txt") { return 1; } else { return 0; } })) {
+            filters[entry[1].replace(/^as_/gm, "")] = [entry[0]];
+        };
+
+        return filters;
+    };
+    @output_format("md")
+    private async as_md () {
+        const md_actual_space = "\n\n";
+        let text = "# Undefined Stringtable Keys" + md_actual_space;
+
+        const found_key_map = await _to_undefined_key_map(this.found_keys);
+
+        for (const key_name of found_key_map.keys()) {
+
+            text += `## ${key_name}${md_actual_space}`;
+
+            for (const _key of found_key_map.get(key_name)!) {
+
+                text += `- \`${_key.relative_path}\`\n`;
+                text += `    - line number: \`${_key.range.start.line + 1}\`\n`;
+                text += `    - character: \`${_key.range.start.character + 1}\`\n`;
+
+            }
+            text += md_actual_space;
+        }
+        return text;
+    };
+
+    @output_format("json")
+    private async as_json () {
+        return JSON.stringify(this.found_keys.map((item) => {
+            const json_data = item.json_data;
+            return {
+                name: json_data.name,
+                relative_path: json_data.relative_path,
+                start_char: json_data.start_char + 1,
+                end_char: json_data.end_char + 1,
+                start_line: json_data.start_line + 1,
+                end_line: json_data.end_line + 1,
+            };
+        }), undefined, 4);
+    };
+    @output_format("txt")
+    private async as_text () {
+
+        return Array.from(new Set(this.found_keys.map((item) => { return item.text; }))).sort((a, b) => { return a.toLowerCase().localeCompare(b.toLowerCase()); }).join("\n");
+
+    };
+    @output_format("csv")
+    private async as_csv () {
+        let text = `"Key", "File", "Line", "Character"\n`;
+        for await (const undef_key of this.found_keys) {
+            text += `"${undef_key.text}", "${vscode.workspace.asRelativePath(undef_key.file, true)}", ${undef_key.range.start.line + 1}, ${undef_key.range.start.character + 1}\n`;
+        };
+        return text;
+    };
+    get_output_format (target_path: string): CallableFunction | undefined {
+        const _extension = path.extname(target_path);
+
+        const _normalized_extension = _extension.trim().replace(/^\./gm, "").toLowerCase();
+
+        return this.output_format_map.get(_normalized_extension);
+    };
+
+    async write (target_path: string) {
+        const output_format = this.get_output_format(target_path);
+        if (!output_format) { return; }
+
+
+        const text = await output_format();
+
+
+        await fs.writeFile(target_path, text, "utf-8");
+    };
+};
+
+
+
 
 function getNonce () {
     let text = '';
@@ -50,10 +162,7 @@ async function _to_undefined_key_map (in_undefinded_keys: FoundKey[]): Promise<M
 
 
 async function _get_pretty_path (in_path: string): Promise<string> {
-    // let pretty_path = in_path.replace(path.resolve(utilities.get_base_workspace_folder()?.uri.fsPath || ""), "");
-    // if (pretty_path.startsWith(path.sep)) {
-    //     pretty_path = pretty_path.substring(1);
-    // }
+
 
     let pretty_path = vscode.workspace.asRelativePath(in_path, false);
 
@@ -70,11 +179,10 @@ async function _create_button (in_found_key: FoundKey): Promise<string> {
 };
 
 async function _create_html (webview: vscode.Webview, undefined_keys: FoundKey[]): Promise<string> {
-
+    const nonce = getNonce();
     const style_sheet_uri = webview.asWebviewUri(vscode.Uri.file(path.join(__dirname, "std_style_sheet.css")));
 
     const scriptUri = webview.asWebviewUri(vscode.Uri.file(path.join(__dirname, "open_file_button_script.js")));
-
 
     const found_key_map = await _to_undefined_key_map(undefined_keys);
 
@@ -90,7 +198,7 @@ async function _create_html (webview: vscode.Webview, undefined_keys: FoundKey[]
         for (const _key of found_key_map.get(key_name)!) {
             _body += `
             <li>
-                file: <code>${await _get_pretty_path(_key.file)}</code>, line number: <code>${_key.range.start.line + 1}</code>, character: <code>${_key.range.start.character + 1}</code>   ${await _create_button(_key)}
+                file: <code class="path-code">${await _get_pretty_path(_key.file)}</code>, line number: <code>${_key.range.start.line + 1}</code>, character: <code>${_key.range.start.character + 1}</code>   ${await _create_button(_key)}
             </li>\n`;
         };
 
@@ -98,57 +206,31 @@ async function _create_html (webview: vscode.Webview, undefined_keys: FoundKey[]
     };
 
 
-    // <meta http - equiv="Content-Security-Policy" content = "default-src 'none'; style-src ${webview.cspSource}; img-src ${webview.cspSource} https:; script-src 'nonce-${getNonce()}';" >
 
-    let _html = `<!DOCTYPE html>
+    const _html = `<!DOCTYPE html>
 			<html lang="en">
-			<head>
-				<meta charset="UTF-8">
+
+                <head>
+                    <meta charset="UTF-8">
+
+                    <meta http - equiv="Content-Security-Policy" content = "default-src 'none'; style-src ${webview.cspSource}; img-src ${webview.cspSource} https:; script-src 'nonce-${nonce}';" >
 
 
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-				<meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <link rel="stylesheet" type="text/css" href="${style_sheet_uri}">
+                    <title>Undefined Stringtable Keys</title>
 
-				<link rel="stylesheet" type="text/css" href="${style_sheet_uri}">
-				<title>Undefined Stringtable Keys</title>
-			</head>
-			<body>
+                </head>
 
+                <body>
 
-                ${_body}
+                    ${_body}
 
-                <script>
-                (function () {
-    const vscode = acquireVsCodeApi();
+                <script nonce="${nonce}" src="${scriptUri}"></script>
 
+                </body>
 
-
-    console.log(vscode);
-    console.log("doing the button thing");
-
-    const copy_button = document.querySelector(".copy-all-key-names-button");
-
-    copy_button.addEventListener('click', (event)=> {vscode.postMessage({command:"copy_all_names",text:''});});
-
-
-    const save_button = document.querySelector(".save-to-file-button");
-
-    save_button.addEventListener('click', (event)=> {vscode.postMessage({command:"save_to_file",text:''});});
-
-
-    const _buttons = document.querySelectorAll('.open-file-button');
-    console.log("_buttons");
-    console.dir(_buttons);
-    for (const _button of _buttons) {
-    _button.addEventListener('click', (event) => {
-        console.log(event);
-        console.dir(event);
-        console.log(_button.dataset.spec);
-        vscode.postMessage({command:"vscode.open",text:_button.dataset.spec});
-    });
-};
-}());</script>
-			</body>
 			</html>`;
 
 
@@ -159,28 +241,38 @@ async function _create_html (webview: vscode.Webview, undefined_keys: FoundKey[]
 
 
 export async function create_undefined_stringtable_keys_result_web_view (undefined_keys: FoundKey[]) {
+    const xxx = new FoundKeysWriter(undefined_keys);
+
+    const sorted_undefined_keys = Array.from(undefined_keys).sort(_found_keys_sort_func);
 
     const column = vscode.window.activeTextEditor
         ? vscode.window.activeTextEditor.viewColumn
         : undefined;
 
+
+    const resource_roots = [vscode.Uri.file(__dirname)];
     const view = vscode.window.createWebviewPanel("undefinedStringtableKeys",
         "Undefined Stringtable Keys",
         column || vscode.ViewColumn.One,
-        { enableScripts: true, localResourceRoots: [vscode.Uri.file(__dirname)] });
+        { enableScripts: true, localResourceRoots: resource_roots });
 
-    view.webview.html = await _create_html(view.webview, undefined_keys);
+    view.webview.html = await _create_html(view.webview, sorted_undefined_keys);
 
-    view.iconPath = { light: vscode.Uri.parse("https://github.com/Giddius/antistasi-development-vscode/blob/main/images/antistasi_development_icon.png?raw=true"), dark: vscode.Uri.parse("https://github.com/Giddius/antistasi-development-vscode/blob/main/images/antistasi_development_icon.png?raw=true") };
+    view.iconPath = {
+        light: vscode.Uri.parse("https://github.com/Giddius/antistasi-development-vscode/blob/main/images/antistasi_development_icon.png?raw=true"),
+        dark: vscode.Uri.parse("https://github.com/Giddius/antistasi-development-vscode/blob/main/images/antistasi_development_icon.png?raw=true")
+    };
 
     view.webview.onDidReceiveMessage(async (message) => {
-        // console.dir(message);
 
         switch (message.command) {
 
+            case "do_log":
+                console.log(`do_log: ${message.text}`);
+                break;
 
 
-            case "vscode.open":
+            case "open_in_editor":
 
                 const spec_data = JSON.parse(message.text);
 
@@ -194,7 +286,7 @@ export async function create_undefined_stringtable_keys_result_web_view (undefin
 
             case "copy_all_names":
 
-                const all_names: string[] = Array.from(new Set(undefined_keys.map((item) => { return item.text; })));
+                const all_names: string[] = Array.from(new Set(sorted_undefined_keys.map((item) => { return item.text; })));
                 all_names.sort((a, b) => { return a.toLowerCase().localeCompare(b.toLowerCase()); });
                 const all_names_text = all_names.join("\n");
                 await vscode.env.clipboard.writeText(all_names_text).then(() => {
@@ -213,34 +305,14 @@ export async function create_undefined_stringtable_keys_result_web_view (undefin
                 const target = await vscode.window.showSaveDialog({
                     title: "Save List of undefined Stringtable keys",
                     defaultUri: default_path,
-                    filters: {
-                        "text": ["txt"], "table": ["csv"], "html": ["html"],
-                    },
+                    filters: FoundKeysWriter.get_filters(),
                     saveLabel: "create"
                 });
                 if (!target) { return; };
-                let text: string = "";
-                switch (path.extname(target.fsPath)) {
 
-                    case ".txt":
-                        text = Array.from(new Set(undefined_keys.map((item) => { return item.text; }))).sort((a, b) => { return a.toLowerCase().localeCompare(b.toLowerCase()); }).join("\n");
-                        break;
+                xxx.write(target.fsPath).then(() => vscode.window.showTextDocument(target));
 
-                    case ".csv":
-                        text = `"Key", "File", "Line", "Character"\n`;
-                        for await (const undef_key of undefined_keys) {
-                            text += `"${undef_key.text}", "${undef_key.file}", ${undef_key.range.start.line + 1}, ${undef_key.range.start.character + 1}\n`;
-                        };
-                        break;
 
-                    case ".html":
-                        text = view.webview.html.replace(/\<button.*\<\/button\>/gm, "");
-                        break;
-                };
-
-                await fs.writeFile(target.fsPath, text, "utf-8");
-                await vscode.window.showTextDocument(target);
-                break;
 
         };
 

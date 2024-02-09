@@ -13,7 +13,31 @@ import * as utils from "./utilities";
 // endregion[Imports]
 
 
+class Extension implements vscode.Disposable {
+	context: vscode.ExtensionContext;
+	config: vscode.WorkspaceConfiguration;
 
+	sub_extensions: SubExtension[];
+
+	constructor (context: vscode.ExtensionContext) {
+		this.context = context;
+		this.config = this.get_config();
+
+		this.sub_extensions = Array.from(ALL_SUB_EXTENSIONS);
+	}
+
+	get_config (): vscode.WorkspaceConfiguration {
+		return vscode.workspace.getConfiguration("antistasiDevelopment");
+	}
+
+	get subscriptions (): vscode.Disposable[] {
+		return this.context.subscriptions;
+	};
+
+	async dispose () {
+
+	};
+};
 
 
 export async function activate (context: vscode.ExtensionContext): Promise<any> {

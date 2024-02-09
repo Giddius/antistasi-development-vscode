@@ -29,7 +29,6 @@ import { Interface } from "readline";
 const DB_PATH: string = path.normalize(path.join(__dirname, "builtin_arma_stringtable_data.db"));
 
 
-// let DB_PATH: string | undefined;
 
 
 
@@ -244,7 +243,6 @@ export class BuiltinStringtableEntry implements StringtableEntryInterface {
     get_hover_text (): vscode.MarkdownString {
         const text = new vscode.MarkdownString("", true);
 
-        // text.appendMarkdown(`\n\n---\n\n`);
         text.appendMarkdown(`$(key) \`${this.exact_key_name}\``);
         text.appendMarkdown(`\n\n---\n\n`);
         text.appendMarkdown(`$(info) **__ARMA 3 BUILTIN__** $(info)`);
@@ -335,6 +333,7 @@ export interface EntryQueryResult {
 
 export class StringtableBuiltinData extends StringtableData {
 
+
     constructor () {
         super();
     };
@@ -365,22 +364,29 @@ export class StringtableBuiltinData extends StringtableData {
 
 
     protected async query_entry (key_name: string) {
-        const hashed_key: string = crypto.createHash("sha256").update(key_name.toLowerCase(), "utf8").digest("hex");
-
 
         const db_connection = await this.get_db_connection();
 
         try {
+            const normalized_key = this._normalize_key(key_name);
+
+            const hashed_key: string = crypto.createHash("sha256").update(normalized_key, "utf8").digest("hex");
+
             const res = await db_connection.get(ENTRY_QUERY, hashed_key);
 
 
             const exists = res.does_exists as boolean;
 
             if (!exists) {
+
                 return;
             };
 
-            return new BuiltinStringtableEntry(key_name);
+            const result = new BuiltinStringtableEntry(key_name);
+
+
+
+            return result;
 
 
         } finally {
@@ -404,7 +410,6 @@ export class StringtableBuiltinData extends StringtableData {
     }
 
     public async delete_db (): Promise<void> {
-        // await (await this.get_db_connection()).close();
 
 
     };
@@ -455,13 +460,7 @@ export class StringtableFileData extends StringtableData {
             };
         };
 
-        // const partial_key_parts: string[] = partial_key.replace(/^str_/gmi, "").split(/_/gmi);
-        // for (const [key, entry] of this.data.entries()) {
-        //     let key_parts = key.toLowerCase().replace(/^str_/gmi, "").split(/_/gmi);
-        //     if (any_parts_match(key_parts, partial_key_parts)) {
-        //         possible_keys.push(entry.exact_key_name);
-        //     };
-        // };
+
         return Array.from(new Set(possible_keys));
 
     };
@@ -575,6 +574,7 @@ export class StringTableDataStorage {
 
     private undefined_cache: Set<string>;
 
+
     constructor () {
         this._onDataLoadedEmitter = new vscode.EventEmitter();
         this.onDataLoaded = this._onDataLoadedEmitter.event;
@@ -595,9 +595,7 @@ export class StringTableDataStorage {
         };
 
 
-        // for (const _f_data of this.static_data) {
-        //     all_key_names.push(...await _f_data.get_all_key_names());
-        // };
+
 
         return Array.from(new Set(all_key_names));
     }
@@ -747,14 +745,6 @@ export class StringTableDataStorage {
         };
 
 
-        // let fixed_data = Array.from(this.static_data);
-
-
-        // for (let _data of fixed_data) {
-        //     possible_entries.push(...await _data.get_key_names_from_partial_key(partial_key));
-
-
-        // };
 
         return Array.from(new Set(possible_entries));
     };
