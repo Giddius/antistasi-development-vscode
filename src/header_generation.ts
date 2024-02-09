@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 
-import * as fs from 'fs';
+import * as fs from "fs-extra";
 
 import * as path from "path";
 
@@ -12,27 +12,27 @@ class DocumentHeaderData {
     file_text: string;
     params: Array<string>;
 
-    constructor(document: vscode.TextDocument) {
+    constructor (document: vscode.TextDocument) {
         this.document = document;
         this.file_name = path.parse(document.uri.fsPath).name;
         this.file_text = document.getText();
         this.params = this.find_params(document.getText());
     };
 
-    toString(): string {
+    toString (): string {
         return JSON.stringify(this, ["file_name", "params"], '  ');
     };
 
-    find_params(text: string): Array<string> {
+    find_params (text: string): Array<string> {
 
         const regex_pattern = /params *\[(.*?)\]\;/gm;
-        const regex_result = regex_pattern.exec(text)
+        const regex_result = regex_pattern.exec(text);
 
         if (regex_result === null) {
             return [];
         }
 
-        const raw_param_text = regex_result[1].replace(/"|'/g, "")
+        const raw_param_text = regex_result[1].replace(/"|'/g, "");
         let param_array = raw_param_text.split(",").map(s => s.trim());
 
         return param_array;
@@ -40,14 +40,14 @@ class DocumentHeaderData {
 }
 
 
-function headerTextFromData(data: DocumentHeaderData): string {
-    let argument_text_parts: Array<string> = []
+function headerTextFromData (data: DocumentHeaderData): string {
+    let argument_text_parts: Array<string> = [];
 
     for (let param_name of data.params) {
         argument_text_parts.push(`    <ANY>${param_name}: `);
     }
 
-    let argument_text = argument_text_parts.join("\n")
+    let argument_text = argument_text_parts.join("\n");
     const text = `
 /*
 Maintainer:
@@ -71,10 +71,10 @@ Dependencies:
 Example:
 
 */
-`
+`;
 
 
-    return text
+    return text;
 };
 
 
@@ -82,27 +82,27 @@ Example:
 
 
 
-function create_header_text(document: vscode.TextDocument): string {
+function create_header_text (document: vscode.TextDocument): string {
 
-    let data: DocumentHeaderData = new DocumentHeaderData(document)
+    let data: DocumentHeaderData = new DocumentHeaderData(document);
 
 
 
-    let text = headerTextFromData(data)
+    let text = headerTextFromData(data);
 
     vscode.window.showInformationMessage(text);
-    return text
+    return text;
 
 }
 
 
-export function create_sqf_header(document: vscode.TextDocument | undefined): string {
+export function create_sqf_header (document: vscode.TextDocument | undefined): string {
 
     if (!document) {
-        return ""
+        return "";
     };
 
-    return create_header_text(document)
+    return create_header_text(document);
 
 
 

@@ -3,28 +3,58 @@
 
 import * as vscode from 'vscode';
 
+import { ALL_SUB_EXTENSIONS, ALL_ENABLED_SUB_EXTENSIONS, activate_all_sub_extensions, deactivate_all_sub_extensions } from "./sub_extensions";
+import * as stringtable_data from "./sub_extensions/stringtable_data/index";
+import { SubExtension } from "./typings/general";
 
-import * as stringtable_data from "./stringtable_data";
+import * as utils from "./utilities";
+
 
 // endregion[Imports]
 
-const SUB_EXTENSIONS = [stringtable_data]
+
+class Extension implements vscode.Disposable {
+	context: vscode.ExtensionContext;
+	config: vscode.WorkspaceConfiguration;
+
+	sub_extensions: SubExtension[];
+
+	constructor (context: vscode.ExtensionContext) {
+		this.context = context;
+		this.config = this.get_config();
+
+		this.sub_extensions = Array.from(ALL_SUB_EXTENSIONS);
+	}
+
+	get_config (): vscode.WorkspaceConfiguration {
+		return vscode.workspace.getConfiguration("antistasiDevelopment");
+	}
+
+	get subscriptions (): vscode.Disposable[] {
+		return this.context.subscriptions;
+	};
+
+	async dispose () {
+
+	};
+};
 
 
-export async function activate(context: vscode.ExtensionContext) {
+export async function activate (context: vscode.ExtensionContext): Promise<any> {
 
 
-	if (!vscode.workspace.workspaceFolders) return;
 
-	await Promise.all(SUB_EXTENSIONS.map((value) => value.activate_sub_extension(context)))
+	if (!utils.is_inside_workspace()) { return; };
 
+	await activate_all_sub_extensions(context);
 
 
 
 }
 
 // This method is called when your extension is deactivated
-export async function deactivate() {
-	await Promise.all(SUB_EXTENSIONS.map((value) => value.deactivate_sub_extension()))
+export async function deactivate () {
+
+	await deactivate_all_sub_extensions();
 
 }
