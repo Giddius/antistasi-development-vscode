@@ -84,3 +84,8 @@ All notable changes to the "antistasi-development" extension will be documented 
 
 - command `insert-stringtable-key` to create a new stringtable-key in the `Stringtable.xml`-file. This is also available as `Quick fix` when encountering undefined stringtable-keys.
 
+## [0.4.1] - 2024-2-09
+
+### Fixed
+
+- small fixes
