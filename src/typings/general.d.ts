@@ -21,7 +21,9 @@ export interface SubExtension {
     readonly __priority__: number;
 
     activate_sub_extension (context: vscode.ExtensionContext): Promise<void>;
-    deactivate_sub_extension (): Promise<void>;
+    deactivate_sub_extension?(): Promise<void>;
+
+    dispose?(): Promise<void>;
 }
 
 export interface StringtableDataLoadedEvent {

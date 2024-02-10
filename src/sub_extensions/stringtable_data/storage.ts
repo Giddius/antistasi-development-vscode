@@ -14,7 +14,7 @@ import * as utilities from "../../utilities";
 
 import AsyncLock from "async-lock";
 
-import { StringtableDataLoadedEvent } from "../../typings/general";
+import { StringtableDataLoadedEvent } from "typings/general";
 
 import * as crypto from "crypto";
 

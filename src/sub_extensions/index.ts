@@ -3,8 +3,8 @@
 
 import * as vscode from 'vscode';
 import * as stringtable_data from "./stringtable_data";
-import { SubExtension } from "../typings/general";
-import * as utils from "../utilities";
+import { SubExtension } from "typings/general";
+import * as utils from "#utilities";
 
 // endregion[Imports]
 
@@ -47,5 +47,5 @@ export function activate_all_sub_extensions (context: vscode.ExtensionContext) {
 
 
 export function deactivate_all_sub_extensions () {
-    return Promise.allSettled(ALL_ENABLED_SUB_EXTENSIONS.map((sub_extension) => { return sub_extension.deactivate_sub_extension(); }));
+    return Promise.allSettled(ALL_ENABLED_SUB_EXTENSIONS.map((sub_extension) => { return sub_extension.deactivate_sub_extension!(); }));
 };

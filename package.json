@@ -173,5 +173,8 @@
         "sqlite": "^5.1.1",
         "sqlite3": "^5.1.7",
         "xml2js": "^0.6.2"
+    },
+    "imports": {
+        "#utilities": "./out/utilities.js"
     }
 }

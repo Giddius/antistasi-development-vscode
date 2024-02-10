@@ -4,10 +4,10 @@
 import * as vscode from 'vscode';
 import * as path from "path";
 import * as fs from "fs-extra";
-import * as utils from "../../utilities";
+import * as utils from "#utilities";
 
 
-import { CustomCommand } from "../../typings/general";
+import { CustomCommand } from "typings/general";
 import { StringTableDataStorage, StringtableEntry } from "./storage";
 import { add_to_stringtable_file } from "./parsing";
 

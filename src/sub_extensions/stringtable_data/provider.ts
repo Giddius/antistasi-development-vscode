@@ -4,12 +4,12 @@
 import * as vscode from 'vscode';
 import * as path from "path";
 import * as fs from "fs-extra";
-import * as utils from "../../utilities";
+import * as utils from "#utilities";
 import { StringTableDataStorage } from "./storage";
 import { randomInt, randomUUID } from "crypto";
 
 import * as glob from "glob";
-import { StringtableDataLoadedEvent } from "../../typings/general";
+import { StringtableDataLoadedEvent } from "typings/general";
 
 
 import { create_undefined_stringtable_keys_result_web_view } from "../../web_views/undefined_stringtable_keys_view";
