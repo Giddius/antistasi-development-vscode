@@ -48,7 +48,7 @@ Each sub-extension can be turned on and off separetely.
 
 ### Hover Data
 
-![Key Hover](images/stringtable_key_hover_presentation.png)
+![Key Hover](https://github.com/Giddius/antistasi-development-vscode/blob/main/images/stringtable_key_hover_presentation.png?raw=true)
 
 
 ---
@@ -56,7 +56,7 @@ Each sub-extension can be turned on and off separetely.
 
 ### Command `scan-for-all-undefined-stringtable-keys`
 
-![Scan for undefined keys Command](images/gifs/undefined_key_scan_command_presentation.gif)
+![Scan for undefined keys Command](https://github.com/Giddius/antistasi-development-vscode/blob/main/images/gifs/undefined_key_scan_command_presentation.gif?raw=true)
 
 
 ---
@@ -64,16 +64,16 @@ Each sub-extension can be turned on and off separetely.
 
 ### Command `convert-to-stringtable-key`
 
-![Convert to key Command](images/gifs/convert_to_key_command_presentation.gif)
+![Convert to key Command](https://github.com/Giddius/antistasi-development-vscode/blob/main/images/gifs/convert_to_key_command_presentation.gif?raw=true)
 
 ---
 
 ### Command `insert-stringtable-key`
 
-![Insert key Command](images/gifs/insert_key_command_presentation.gif)
+![Insert key Command](https://github.com/Giddius/antistasi-development-vscode/blob/main/images/gifs/insert_key_command_presentation.gif?raw=true)
 
 ---
 
 ### Header Comment Snippet
 
-![Header Comment Snippet](images/gifs/header_comment_snippet_presentation.gif)
+![Header Comment Snippet](https://github.com/Giddius/antistasi-development-vscode/blob/main/images/gifs/header_comment_snippet_presentation.gif?raw=true)
