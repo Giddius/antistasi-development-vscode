@@ -143,8 +143,8 @@
         "pretest": "npm run compile && npm run lint",
         "lint": "eslint src --ext ts",
         "test": "node ./out/test/runTest.js",
-        "publish": "npm run compile && vsce package",
-        "publish_prerelease": "npm run compile && vsce package --pre-release"
+        "publish": "mkdirp \"./dist/\" && vsce package -o \"./dist/\"",
+        "publish_prerelease": "vsce package --pre-release"
     },
     "devDependencies": {
         "@types/async-lock": "^1.4.2",
@@ -165,7 +165,8 @@
         "mocha": "^10.2.0",
         "mocha-explorer-launcher-scripts": "^0.4.0",
         "prettier": "^3.2.1",
-        "typescript": "^5.3.3"
+        "typescript": "^5.3.3",
+        "mkdirp": "^3.0.1"
     },
     "dependencies": {
         "async-lock": "^1.4.1",
