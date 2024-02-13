@@ -1,21 +1,35 @@
+body.vscode-light {
+    --my-shadow-color: rgba(0, 0, 0, 0.25);
+}
+
+body.vscode-dark {
+    --my-shadow-color: rgba(255, 255, 255, 0.25);
+}
+
+
 .keyList {
-    background-color: var(--vscode-sideBar-background);
+    background-color: var(--vscode-panel-background);
     display: block;
     padding: 1rem;
     margin: 1rem;
     border: 0.25rem solid var(--vscode-widget-border);
-    box-shadow: 0 0 0.5rem 0.1rem var(--vscode-sideBar-foreground);
+    box-shadow: 0 0 0.5rem 0.1rem var(--my-shadow-color);
     font-family: var(--vscode-editor-font-family);
 }
 
 
 .keyListTitle {
+
     font-weight: bolder;
     text-decoration: underline;
     font-family: var(--vscode-editor-font-family);
     font-size: var(--vscode-editor-font-size);
-    color: var(--vscode-foreground);
+    color: var(--vscode-editorWidget-foreground);
 
+}
+
+.keyListTitle:hover {
+    cursor: pointer;
 }
 
 
@@ -40,9 +54,7 @@ button:active {
 
 code {
     background-color: var(--vscode-textBlockQuote-background);
-    /* color: var(--vscode-editor-foreground); */
 }
-
 
 
 
@@ -50,18 +62,21 @@ code {
 .copy-all-key-names-button {
     display: block;
     min-width: 10rem;
-
-    padding-top: 0.25rem;
-    padding-bottom: 0.25rem;
-
-    margin: 0.25rem;
+    padding: 0.25rem;
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+    margin: auto;
 }
 
+
+
 .misc-buttons-box {
-    border: 0.25rem solid var(--vscode-breadcrumb-background);
-    background-color: rgba(125, 125, 125, 0.25);
+    border: 0.25rem solid var(--vscode-menu-border);
+    background-color: var(--vscode-menu-background);
+    box-shadow: 0 0 0.5rem 0.1rem var(--my-shadow-color);
     padding: 0.5rem;
-    padding-left: 0.1rem;
+    /* padding-left: 0.1rem; */
     width: fit-content;
     margin: 1rem;
+    display: block;
 }

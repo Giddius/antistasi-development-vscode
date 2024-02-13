@@ -29,10 +29,17 @@ function _found_keys_sort_func (a: FoundKey, b: FoundKey): number {
 };
 
 
-function output_format (key: string) {
+
+interface OutputFormatSpec {
+    key: string;
+    property_key: string;
+    importance: number;
+};
+
+function output_format (key: string, importance: number = 100) {
     return function (target: any, propertyKey: string, descriptor?: PropertyDescriptor) {
 
-        target.constructor.output_format_name_map.set(key, propertyKey);
+        target.constructor.output_format_name_map.set(key, { key: key, property_key: propertyKey, importance: importance });
 
     };
 };
@@ -41,11 +48,11 @@ class FoundKeysWriter {
 
     readonly found_keys: FoundKey[];
     readonly output_format_map: Map<string, () => string>;
-    static output_format_name_map: Map<string, string> = new Map();
+    static output_format_name_map: Map<string, OutputFormatSpec> = new Map();
 
     constructor (found_keys: FoundKey[]) {
         this.found_keys = Array.from(found_keys).sort(_found_keys_sort_func);
-        this.output_format_map = new Map(Array.from(FoundKeysWriter.output_format_name_map.entries()).map((item) => { return [item[0], (this[item[1] as keyof typeof this] as () => string).bind(this)]; }));
+        this.output_format_map = new Map(Array.from(FoundKeysWriter.output_format_name_map.entries()).map((item) => { return [item[0], (this[item[1].property_key as keyof typeof this] as () => string).bind(this)]; }));
     };
 
 
@@ -53,8 +60,8 @@ class FoundKeysWriter {
         let filters: {
             [name: string]: string[];
         } = {};
-        for (const entry of Array.from(this.output_format_name_map.entries()).sort((a, b) => { if (a[0] === "txt") { return 1; } else { return 0; } })) {
-            filters[entry[1].replace(/^as_/gm, "")] = [entry[0]];
+        for (const entry of Array.from(this.output_format_name_map.entries()).sort((a, b) => { return a[1].importance - b[1].importance; })) {
+            filters[entry[1].property_key.replace(/^as_/gm, "")] = [entry[0]];
         };
 
         return filters;
@@ -82,7 +89,7 @@ class FoundKeysWriter {
         return text;
     };
 
-    @output_format("json")
+    @output_format("json", 2)
     private async as_json () {
         return JSON.stringify(this.found_keys.map((item) => {
             const json_data = item.json_data;
@@ -96,7 +103,7 @@ class FoundKeysWriter {
             };
         }), undefined, 4);
     };
-    @output_format("txt")
+    @output_format("txt", 1)
     private async as_text () {
 
         return Array.from(new Set(this.found_keys.map((item) => { return item.text; }))).sort((a, b) => { return a.toLowerCase().localeCompare(b.toLowerCase()); }).join("\n");
@@ -191,9 +198,11 @@ async function _create_html (webview: vscode.Webview, undefined_keys: FoundKey[]
                     <button class="copy-all-key-names-button">copy to clipboard</button>
                     <button class="save-to-file-button">save to file</button>
                 </div>\n\n`;
+
+
     for (const key_name of found_key_map.keys()) {
 
-        _body += `<div class="keyList"><div class="keyListTitle">${key_name}</div>\n`;
+        _body += `<div class="keyList"><details><summary class="keyListTitle" id="${key_name.toLowerCase()}">${key_name}</summary>\n`;
         _body += `<ul>\n`;
         for (const _key of found_key_map.get(key_name)!) {
             _body += `
@@ -202,7 +211,7 @@ async function _create_html (webview: vscode.Webview, undefined_keys: FoundKey[]
             </li>\n`;
         };
 
-        _body += `</ul></div>`;
+        _body += `</ul></details></div>`;
     };
 
 
@@ -213,8 +222,7 @@ async function _create_html (webview: vscode.Webview, undefined_keys: FoundKey[]
                 <head>
                     <meta charset="UTF-8">
 
-                    <meta http - equiv="Content-Security-Policy" content = "default-src 'none'; style-src ${webview.cspSource}; img-src ${webview.cspSource} https:; script-src 'nonce-${nonce}';" >
-
+				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; img-src ${webview.cspSource} https:; script-src 'nonce-${nonce}';">
 
                     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
@@ -241,7 +249,7 @@ async function _create_html (webview: vscode.Webview, undefined_keys: FoundKey[]
 
 
 export async function create_undefined_stringtable_keys_result_web_view (undefined_keys: FoundKey[]) {
-    const xxx = new FoundKeysWriter(undefined_keys);
+    const writer = new FoundKeysWriter(undefined_keys);
 
     const sorted_undefined_keys = Array.from(undefined_keys).sort(_found_keys_sort_func);
 
@@ -254,7 +262,7 @@ export async function create_undefined_stringtable_keys_result_web_view (undefin
     const view = vscode.window.createWebviewPanel("undefinedStringtableKeys",
         "Undefined Stringtable Keys",
         column || vscode.ViewColumn.One,
-        { enableScripts: true, localResourceRoots: resource_roots });
+        { enableScripts: true, localResourceRoots: resource_roots, enableFindWidget: false });
 
     view.webview.html = await _create_html(view.webview, sorted_undefined_keys);
 
@@ -263,7 +271,8 @@ export async function create_undefined_stringtable_keys_result_web_view (undefin
         dark: vscode.Uri.parse("https://github.com/Giddius/antistasi-development-vscode/blob/main/images/antistasi_development_icon.png?raw=true")
     };
 
-    view.webview.onDidReceiveMessage(async (message) => {
+
+    const message_listener = view.webview.onDidReceiveMessage(async (message) => {
 
         switch (message.command) {
 
@@ -306,11 +315,11 @@ export async function create_undefined_stringtable_keys_result_web_view (undefin
                     title: "Save List of undefined Stringtable keys",
                     defaultUri: default_path,
                     filters: FoundKeysWriter.get_filters(),
-                    saveLabel: "create"
+
                 });
                 if (!target) { return; };
 
-                xxx.write(target.fsPath).then(() => vscode.window.showTextDocument(target));
+                writer.write(target.fsPath).then(() => vscode.window.showTextDocument(target));
 
 
 
@@ -319,5 +328,9 @@ export async function create_undefined_stringtable_keys_result_web_view (undefin
 
     });
 
+
+    view.onDidDispose((e) => { message_listener.dispose(); console.log(`webview ${view} was disposed`); });
+
     view.reveal(column);
+
 };
