@@ -1,9 +1,9 @@
 body.vscode-light {
-    --my-shadow-color: rgba(0, 0, 0, 0.25);
+    --my-shadow-color: rgba(0, 0, 0, 0.15);
 }
 
 body.vscode-dark {
-    --my-shadow-color: rgba(255, 255, 255, 0.25);
+    --my-shadow-color: rgba(255, 255, 255, 0.15);
 }
 
 
@@ -12,7 +12,7 @@ body.vscode-dark {
     display: block;
     padding: 1rem;
     margin: 1rem;
-    border: 0.25rem solid var(--vscode-widget-border);
+    border: 0.25rem solid var(--vscode-titleBar-border);
     box-shadow: 0 0 0.5rem 0.1rem var(--my-shadow-color);
     font-family: var(--vscode-editor-font-family);
 }
@@ -66,13 +66,15 @@ code {
     padding-top: 0.5rem;
     padding-bottom: 0.5rem;
     margin: auto;
+    margin-top: 0.1rem;
+    margin-bottom: 0.1rem;
 }
 
 
 
 .misc-buttons-box {
-    border: 0.25rem solid var(--vscode-menu-border);
-    background-color: var(--vscode-menu-background);
+    border: 0.25rem solid var(--vscode-menu-selectionBorder);
+    background-color: var(--vscode-list-focusBackground);
     box-shadow: 0 0 0.5rem 0.1rem var(--my-shadow-color);
     padding: 0.5rem;
     /* padding-left: 0.1rem; */

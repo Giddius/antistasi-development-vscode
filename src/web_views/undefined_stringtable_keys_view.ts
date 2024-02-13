@@ -262,7 +262,7 @@ export async function create_undefined_stringtable_keys_result_web_view (undefin
     const view = vscode.window.createWebviewPanel("undefinedStringtableKeys",
         "Undefined Stringtable Keys",
         column || vscode.ViewColumn.One,
-        { enableScripts: true, localResourceRoots: resource_roots, enableFindWidget: false });
+        { enableScripts: true, localResourceRoots: resource_roots, enableFindWidget: true, retainContextWhenHidden: true });
 
     view.webview.html = await _create_html(view.webview, sorted_undefined_keys);
 
