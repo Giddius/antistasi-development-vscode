@@ -89,3 +89,16 @@ All notable changes to the "antistasi-development" extension will be documented 
 ### Fixed
 
 - small fixes
+
+
+## [0.4.2] - 2024-2-13
+
+### Fixed
+
+#### Stringtable-Data
+
+- race condition in `scan-for-all-undefined-stringtable-keys` that lead to a quasi memory leak
+
+- colors in `scan-for-all-undefined-stringtable-keys` result web-view.
+
+- prevented `scan-for-all-undefined-stringtable-keys` to be invoked while it is already running.
