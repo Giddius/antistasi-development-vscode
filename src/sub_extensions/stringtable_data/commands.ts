@@ -35,7 +35,7 @@ function is_InputNewStringtableKeyArguments (item: any): boolean {
     ];
 
     for (const property_name of property_names) {
-        if (property_name in item) return true;
+        if (property_name in item) { return true; }
     };
 
     return false;
@@ -53,7 +53,7 @@ export class InsertNewStringtableKeyCommand extends BaseCommand<StringtableEntry
 
     protected get_argument_object_from_args (...args: any[]): InputNewStringtableKeyArguments | undefined {
         for (const arg of args) {
-            if (is_InputNewStringtableKeyArguments(arg)) return arg;
+            if (is_InputNewStringtableKeyArguments(arg)) { return arg; }
         };
     };
     protected async execute (...args: any[]): Promise<StringtableEntry | undefined> {
@@ -105,7 +105,7 @@ export class ConvertToStringtableKeyCommand extends BaseCommand<void> {
         const editor = vscode.window.activeTextEditor;
 
 
-        if (!editor) return;
+        if (!editor) { return; }
 
         let selection: vscode.Range | vscode.Selection = editor.selection;
 
@@ -113,8 +113,8 @@ export class ConvertToStringtableKeyCommand extends BaseCommand<void> {
 
         if (selection.isEmpty) {
             let line = editor.document.lineAt(selection.start.line);
-            if (line.isEmptyOrWhitespace) return;
-            if ((!line.text.includes('"')) && (!line.text.includes("'"))) return;
+            if (line.isEmptyOrWhitespace) { return; }
+            if ((!line.text.includes('"')) && (!line.text.includes("'"))) { return; }
 
 
 
@@ -130,7 +130,7 @@ export class ConvertToStringtableKeyCommand extends BaseCommand<void> {
                 // The result can be accessed through the `m`-variable.
                 found.push([m.index, regex.lastIndex]);
             };
-            if (found.length <= 0) return;
+            if (found.length <= 0) { return; }
             for (let indexes of found) {
                 if ((indexes[0] <= selection.start.character) && (indexes[1] >= selection.end.character)) {
                     selection = new vscode.Selection(selection.start.line, indexes[0], selection.end.line, indexes[1]);
@@ -141,7 +141,7 @@ export class ConvertToStringtableKeyCommand extends BaseCommand<void> {
 
             // if (_temp_text.startsWith('"') || _temp_text.endsWith('"') || _temp_text.startsWith("'") || _temp_text.endsWith("'")) break;
 
-            if (selection.start.character < 0) return;
+            if (selection.start.character < 0) { return; }
 
 
 
@@ -155,7 +155,7 @@ export class ConvertToStringtableKeyCommand extends BaseCommand<void> {
         if ((!raw_text.startsWith('"'))
             && (!raw_text.endsWith('"'))
             && (!raw_text.startsWith("'"))
-            && (!raw_text.endsWith("'"))) return;
+            && (!raw_text.endsWith("'"))) { return; }
 
         const text = utils.resolve_sqf_string(raw_text);
 
@@ -163,7 +163,7 @@ export class ConvertToStringtableKeyCommand extends BaseCommand<void> {
 
         const key_name = result?.key_name;
 
-        if (!key_name) return;
+        if (!key_name) { return; }
 
         editor.edit((editBuilder) => {
             switch (path.extname(editor.document.uri.fsPath).toLowerCase()) {
