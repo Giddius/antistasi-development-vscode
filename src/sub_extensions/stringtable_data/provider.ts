@@ -146,17 +146,17 @@ export class StringTableProvider implements vscode.HoverProvider, vscode.Definit
                 clearTimeout(timeout);
                 this.problems_handling_timeouts.delete(document.uri);
             };
-            console.log(`deleting ${document.uri.fsPath} from diagnostic_collection`);
             this.diagnostic_collection.delete(document.uri);
         };
     };
 
     handle_on_text_document_open = async (document: vscode.TextDocument) => {
         if (this.allowed_file_name_extensions.includes(path.extname(document.fileName).toLowerCase())) {
-            console.log(`opened: ${document.uri.fsPath}`);
 
             await this.handle_problems(document.uri);
         };
+
+
 
     };
 
@@ -344,9 +344,9 @@ export class StringTableProvider implements vscode.HoverProvider, vscode.Definit
 
     };
 
+
     async handle_problems (file: vscode.Uri, recurring: boolean = true, token?: vscode.CancellationToken): Promise<FoundKey[] | undefined> {
 
-        // console.log(`working on ${file.fsPath}`);
 
         const locked_res = await this.problem_handling_lock.acquire(path.normalize(file.fsPath), async () => {
             if ((!this._check_problems_handling_enabled())) {
@@ -446,10 +446,8 @@ export class StringTableProvider implements vscode.HoverProvider, vscode.Definit
                     clearTimeout(timeout);
                     this.problems_handling_timeouts.delete(file);
                 };
-                console.log(`adding ${file.fsPath} to timeouts because reccuring= ${recurring}`);
                 timeout = setTimeout(async () => { this.handle_problems(file, true); }, (25 * 1000) + randomInt(0, 5000));
                 this.problems_handling_timeouts.set(file, timeout);
-                console.log(`this.problems_handling_timeouts lenght: ${this.problems_handling_timeouts.size}`);
 
 
             };
