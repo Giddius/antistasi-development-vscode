@@ -176,6 +176,7 @@
         "xml2js": "^0.6.2"
     },
     "imports": {
-        "#utilities": "./out/utilities.js"
+        "#utilities": "./out/utilities.js",
+        "#bases": "./out/bases.js"
     }
 }
