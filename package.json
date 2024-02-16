@@ -57,7 +57,8 @@
                 "command": "antistasi.convert-to-stringtable-key",
                 "title": "convert to stringtable key",
                 "category": "Antistasi-Development-Stringtable",
-                "shortTitle": "convert"
+                "shortTitle": "convert",
+                "enablement": "(editorIsOpen)&&(!editorReadonly)&&(resourceScheme == file && resourceExtname in antistasiDevelopment.supportedFileextensions)"
             },
             {
                 "command": "antistasi.scan-for-all-undefined-stringtable-keys",
