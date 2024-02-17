@@ -28,18 +28,28 @@ function _found_keys_sort_func (a: FoundKey, b: FoundKey): number {
     return a.text.toLowerCase().localeCompare(b.text.toLowerCase());
 };
 
-
+type format_function = () => Promise<string>;
 
 interface OutputFormatSpec {
-    key: string;
-    property_key: string;
+    descriptive_name: string;
+    target_file_extension: string;
     importance: number;
+    format: format_function;
 };
 
-function output_format (key: string, importance: number = 100) {
+function output_format (descriptive_name: string, target_file_extension: string, importance: number = 100) {
+
     return function (target: any, propertyKey: string, descriptor?: PropertyDescriptor) {
 
-        target.constructor.output_format_name_map.set(key, { key: key, property_key: propertyKey, importance: importance });
+
+
+        if (!descriptor) {
+            throw Error(`unable to set output-format-function, because "descriptor"=${descriptor}`);
+        }
+
+        target_file_extension = target_file_extension.trim().replace(/^\./gm, "").toLowerCase();
+
+        target.constructor.available_output_formats.push({ descriptive_name: descriptive_name, target_file_extension: target_file_extension, importance: importance, format: descriptor.value });
 
     };
 };
@@ -47,26 +57,50 @@ function output_format (key: string, importance: number = 100) {
 class FoundKeysWriter {
 
     readonly found_keys: FoundKey[];
-    readonly output_format_map: Map<string, () => string>;
-    static output_format_name_map: Map<string, OutputFormatSpec> = new Map();
+
+    static available_output_formats: OutputFormatSpec[] = [];
 
     constructor (found_keys: FoundKey[]) {
         this.found_keys = Array.from(found_keys).sort(_found_keys_sort_func);
-        this.output_format_map = new Map(Array.from(FoundKeysWriter.output_format_name_map.entries()).map((item) => { return [item[0], (this[item[1].property_key as keyof typeof this] as () => string).bind(this)]; }));
+
     };
 
 
-    static get_filters () {
+    public get_output_formats (): Array<OutputFormatSpec> {
+        const klass = Object.getPrototypeOf(this);
+
+        return Array.from(klass.constructor.available_output_formats);
+    }
+
+
+
+    public get output_format_map (): ReadonlyMap<string, format_function> {
+        const format_map = new Map<string, format_function>();
+        for (const output_spec of this.get_output_formats()) {
+            format_map.set(output_spec.target_file_extension, output_spec.format.bind(this));
+        };
+
+        return format_map;
+    }
+
+
+    public get_filters () {
         let filters: {
             [name: string]: string[];
         } = {};
-        for (const entry of Array.from(this.output_format_name_map.entries()).sort((a, b) => { return a[1].importance - b[1].importance; })) {
-            filters[entry[1].property_key.replace(/^as_/gm, "")] = [entry[0]];
+        for (const output_spec of Array.from(this.get_output_formats()).sort((a, b) => { return a.importance - b.importance; })) {
+            if (!(output_spec.descriptive_name in filters)) {
+                filters[output_spec.descriptive_name] = [];
+            }
+
+            filters[output_spec.descriptive_name].push(output_spec.target_file_extension);
         };
+
 
         return filters;
     };
-    @output_format("md")
+
+    @output_format("Markdown", "md")
     private async as_md () {
         const md_actual_space = "\n\n";
         let text = "# Undefined Stringtable Keys" + md_actual_space;
@@ -89,7 +123,7 @@ class FoundKeysWriter {
         return text;
     };
 
-    @output_format("json", 2)
+    @output_format("JSON", "json", 2)
     private async as_json () {
         return JSON.stringify(this.found_keys.map((item) => {
             const json_data = item.json_data;
@@ -103,13 +137,13 @@ class FoundKeysWriter {
             };
         }), undefined, 4);
     };
-    @output_format("txt", 1)
+    @output_format("Text", "txt", 1)
     private async as_text () {
 
         return Array.from(new Set(this.found_keys.map((item) => { return item.text; }))).sort((a, b) => { return a.toLowerCase().localeCompare(b.toLowerCase()); }).join("\n");
 
     };
-    @output_format("csv")
+    @output_format("Table", "csv")
     private async as_csv () {
         let text = `"Key", "File", "Line", "Character"\n`;
         for await (const undef_key of this.found_keys) {
@@ -117,6 +151,7 @@ class FoundKeysWriter {
         };
         return text;
     };
+
     get_output_format (target_path: string): CallableFunction | undefined {
         const _extension = path.extname(target_path);
 
@@ -251,6 +286,7 @@ async function _create_html (webview: vscode.Webview, undefined_keys: FoundKey[]
 export async function create_undefined_stringtable_keys_result_web_view (undefined_keys: FoundKey[]) {
     const writer = new FoundKeysWriter(undefined_keys);
 
+
     const sorted_undefined_keys = Array.from(undefined_keys).sort(_found_keys_sort_func);
 
     const column = vscode.window.activeTextEditor
@@ -314,7 +350,7 @@ export async function create_undefined_stringtable_keys_result_web_view (undefin
                 const target = await vscode.window.showSaveDialog({
                     title: "Save List of undefined Stringtable keys",
                     defaultUri: default_path,
-                    filters: FoundKeysWriter.get_filters(),
+                    filters: writer.get_filters(),
 
                 });
                 if (!target) { return; };
