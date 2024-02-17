@@ -65,6 +65,12 @@
                 "title": "scan for all undefined stringtable keys",
                 "category": "Antistasi-Development-Stringtable",
                 "shortTitle": "scan undefined stringtable keys"
+            },
+            {
+                "command": "antistasi.generic-debug",
+                "title": "Generic debug",
+                "category": "Antistasi-Development-debug",
+                "enablement": "(antistasiDevelopment.isDev)"
             }
         ],
         "menus": {
