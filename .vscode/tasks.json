@@ -10,6 +10,10 @@
 			"group": {
 				"kind": "build",
 				"isDefault": true
+			},
+			"presentation": {
+				"reveal": "silent",
+				"clear": true
 			}
 		},
 		{
