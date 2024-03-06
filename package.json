@@ -40,6 +40,25 @@
     ],
     "main": "./out/extension.js",
     "contributes": {
+        "views": {
+            "stringtableDataTreeView": [
+                {
+                    "id": "stringtableDataTree",
+                    "name": "Stringtable Data Tree",
+                    "icon": "images/stringtable_tree_icon.svg",
+                    "contextualTitle": "Stringtable Data Tree"
+                }
+            ]
+        },
+        "viewsContainers": {
+            "activitybar": [
+                {
+                    "id": "stringtableDataTreeView",
+                    "title": "Stringtable Data",
+                    "icon": "images/stringtable_tree_icon.svg"
+                }
+            ]
+        },
         "submenus": [
             {
                 "id": "antistasiDevelopment.stringtable_menu",
@@ -47,6 +66,31 @@
             }
         ],
         "commands": [
+            {
+                "command": "stringtableDataTree.refresh",
+                "title": "Refresh",
+                "icon": "$(refresh)"
+            },
+            {
+                "command": "stringtableDataTree.filterOnlyNoTranslations",
+                "title": "Only Keys with no translations",
+                "icon": "${filter}"
+            },
+            {
+                "command": "stringtableDataTree.filterOnlyPlaceholder",
+                "title": "Only Keys with Placeholders",
+                "icon": "${filter}"
+            },
+            {
+                "command": "stringtableDataTree.unsetFilter",
+                "title": "Show All",
+                "icon": "${filter}"
+            },
+            {
+                "command": "stringtableDataTree.filterOnlyNoUsage",
+                "title": "Only Keys with no Usage in the code base",
+                "icon": "${filter}"
+            },
             {
                 "command": "antistasi.insert-stringtable-key",
                 "title": "insert new stringtable key",
@@ -67,6 +111,12 @@
                 "shortTitle": "scan undefined stringtable keys"
             },
             {
+                "command": "antistasi.only-scan-for-all-undefined-stringtable-keys",
+                "title": "only scan for all undefined stringtable keys",
+                "category": "Antistasi-Development-Stringtable",
+                "shortTitle": "only scan undefined stringtable keys"
+            },
+            {
                 "command": "antistasi.generic-debug",
                 "title": "Generic debug",
                 "category": "Antistasi-Development-debug",
@@ -74,6 +124,33 @@
             }
         ],
         "menus": {
+            "view/title": [
+                {
+                    "command": "stringtableDataTree.refresh",
+                    "when": "view == stringtableDataTree",
+                    "group": "navigation"
+                },
+                {
+                    "command": "stringtableDataTree.unsetFilter",
+                    "when": "view==stringtableDataTree",
+                    "group": "stringtableDataTreeFiltering@0"
+                },
+                {
+                    "command": "stringtableDataTree.filterOnlyNoTranslations",
+                    "when": "view==stringtableDataTree",
+                    "group": "stringtableDataTreeFiltering@1"
+                },
+                {
+                    "command": "stringtableDataTree.filterOnlyPlaceholder",
+                    "when": "view==stringtableDataTree",
+                    "group": "stringtableDataTreeFiltering@2"
+                },
+                {
+                    "command": "stringtableDataTree.filterOnlyNoUsage",
+                    "when": "view==stringtableDataTree",
+                    "group": "stringtableDataTreeFiltering@3"
+                }
+            ],
             "editor/context": [
                 {
                     "submenu": "antistasiDevelopment.stringtable_menu",
@@ -125,6 +202,19 @@
                         "scope": "window",
                         "description": "Enable automatic marking of undefined Stringtable Keys as problems in `sqf`/`ext`/`cpp`/`hpp` files."
                     },
+                    "antistasiDevelopment.stringtable_data.undefinedKeysProblemSeverity": {
+                        "type": "string",
+                        "enum": [
+                            "info",
+                            "information",
+                            "hint",
+                            "warning",
+                            "error"
+                        ],
+                        "default": "warning",
+                        "scope": "window",
+                        "description": ""
+                    },
                     "antistasiDevelopment.stringtable_data.undefinedKeysToIgnore": {
                         "type": "array",
                         "default": [],
@@ -143,7 +233,8 @@
         ]
     },
     "scripts": {
-        "precompile": "node ./tools/setup_compile.js ./",
+        "compile_helper": "node ./tools/setup_compile.mjs ./",
+        "precompile": "npm run compile_helper",
         "vscode:prepublish": "npm run compile",
         "compile": "tsc -p ./",
         "watch": "tsc -watch -p ./",
@@ -165,19 +256,20 @@
         "@typescript-eslint/parser": "^6.18.1",
         "@vscode/test-electron": "^2.3.4",
         "@vscode/vsce": "^2.23.0",
+        "@types/minimatch": "^5.1.2",
         "eslint": "^8.56.0",
         "eslint-config-prettier": "^9.1.0",
-        "glob": "^10.3.3",
-        "minimatch": "^9.0.3",
+        "mkdirp": "^3.0.1",
         "mocha": "^10.2.0",
         "mocha-explorer-launcher-scripts": "^0.4.0",
         "prettier": "^3.2.1",
-        "typescript": "^5.3.3",
-        "mkdirp": "^3.0.1"
+        "typescript": "^5.3.3"
     },
     "dependencies": {
         "async-lock": "^1.4.1",
         "fs-extra": "^11.2.0",
+        "minimatch": "^9.0.3",
+        "reflect-metadata": "^0.2.1",
         "sqlite": "^5.1.1",
         "sqlite3": "^5.1.7",
         "xml2js": "^0.6.2"

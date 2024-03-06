@@ -19,11 +19,12 @@
 		"sourceMap": true,
 		"rootDir": "src",
 		"strict": true,
-		"diagnostics": true,
+		"diagnostics": false,
 		"resolveJsonModule": true,
 		"esModuleInterop": true,
 		"experimentalDecorators": true,
-		"emitDecoratorMetadata": true
+		"emitDecoratorMetadata": true,
+		"declaration": false
 	},
 	"exclude": [
 		"node_modules",

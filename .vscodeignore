@@ -8,10 +8,10 @@ vsc-extension-quickstart.md
 **/.eslintrc.json
 **/*.map
 **/*.ts
+.npmrc
 
 temp/**
 
 tools/**
-node_modules/**
 
-images/gifs/**
+images/readme_only/**
