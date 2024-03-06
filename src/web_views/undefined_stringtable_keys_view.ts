@@ -6,7 +6,7 @@ import * as path from "path";
 import * as fs from "fs-extra";
 import * as utilities from "../utilities";
 
-import { FoundKey } from "../sub_extensions/stringtable_data/provider";
+import { FoundKey } from "../sub_extensions/stringtable_data/parsing";
 import { text } from "node:stream/consumers";
 import { TIMEOUT } from "dns";
 import { prototype } from "events";
@@ -284,6 +284,7 @@ async function _create_html (webview: vscode.Webview, undefined_keys: FoundKey[]
 
 
 export async function create_undefined_stringtable_keys_result_web_view (undefined_keys: FoundKey[]) {
+    console.log(`at the writer creation`);
     const writer = new FoundKeysWriter(undefined_keys);
 
 
@@ -365,7 +366,7 @@ export async function create_undefined_stringtable_keys_result_web_view (undefin
     });
 
 
-    view.onDidDispose((e) => { message_listener.dispose(); console.log(`webview ${view} was disposed`); });
+    view.onDidDispose((e) => { message_listener.dispose(); });
 
     view.reveal(column);
 
