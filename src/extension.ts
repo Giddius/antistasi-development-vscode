@@ -2,17 +2,41 @@
 // region[Imports]
 
 import * as vscode from 'vscode';
-
+import * as path from "path";
 import { ALL_SUB_EXTENSIONS, ALL_ENABLED_SUB_EXTENSIONS, activate_all_sub_extensions, deactivate_all_sub_extensions } from "./sub_extensions";
-import * as stringtable_data from "./sub_extensions/stringtable_data/index";
+
 import { SubExtension } from "typings/general";
 
+import { FreeCommand, AbstractCommand } from "#bases";
+
 import * as utils from "#utilities";
-import { error } from "console";
+
 
 
 // endregion[Imports]
 
+
+class GeneralDebugCommand extends FreeCommand {
+	public readonly name: string = "antistasi.generic-debug";
+	public readonly config_key: string = "antistasiDevelopment";
+
+
+	constructor () {
+		super();
+	}
+
+	async something () {
+		return "I am the outer result";
+	}
+
+	protected async execute (...args: any[]): Promise<void> {
+
+		const result = await this.something().then((result) => { return result + " | " + "I am the inner result"; });
+		console.log(result);
+
+	}
+
+}
 
 
 class AntistasiDevelopmentExtension implements vscode.Disposable {
@@ -22,6 +46,7 @@ class AntistasiDevelopmentExtension implements vscode.Disposable {
 	readonly available_sub_extensions: ReadonlyArray<SubExtension>;
 	readonly activated_sub_extensions: SubExtension[];
 	readonly is_development: boolean;
+	commands: FreeCommand[];
 
 	constructor (context: vscode.ExtensionContext) {
 		this.context = context;
@@ -30,6 +55,7 @@ class AntistasiDevelopmentExtension implements vscode.Disposable {
 		this.available_sub_extensions = Array.from(ALL_SUB_EXTENSIONS);
 		this.activated_sub_extensions = [];
 		this.is_development = (context.extensionMode === vscode.ExtensionMode.Development);
+		this.commands = [new GeneralDebugCommand()];
 	}
 
 	retrieve_config (): vscode.WorkspaceConfiguration {
@@ -42,6 +68,9 @@ class AntistasiDevelopmentExtension implements vscode.Disposable {
 		return this.context.subscriptions;
 	};
 
+
+
+
 	private async activate_sub_extension (sub_extension: SubExtension): Promise<void> {
 		await sub_extension.activate_sub_extension(this.context);
 
@@ -49,17 +78,22 @@ class AntistasiDevelopmentExtension implements vscode.Disposable {
 
 	}
 
-	dev_command = async (...args: any[]) => {
 
-		await vscode.window.showInformationMessage("Debug command triggered");
-	};
+
+
+	private async set_context_values (): Promise<void> {
+		await vscode.commands.executeCommand('setContext', 'antistasiDevelopment.isDev', this.is_development);
+
+	}
 
 	async start_up (): Promise<void> {
 
-		await vscode.commands.executeCommand('setContext', 'antistasiDevelopment.isDev', this.is_development);
 
+		await this.set_context_values();
 
-		this.subscriptions.push(vscode.commands.registerCommand("antistasi.generic-debug", this.dev_command, this));
+		for (const command of this.commands) {
+			await command.register(this.context);
+		}
 
 		const activation_tasks: Promise<void>[] = [];
 
@@ -67,19 +101,21 @@ class AntistasiDevelopmentExtension implements vscode.Disposable {
 			if (!sub_extension.__enabled__) { continue; }
 
 			activation_tasks.push(this.activate_sub_extension(sub_extension));
+
 		};
 
 		await Promise.allSettled(activation_tasks);
 	};
 
 	async dispose () {
-		try {
-			await Promise.allSettled(this.activated_sub_extensions.map((sub_extension) => { return ("dispose" in sub_extension) ? sub_extension.dispose!() : sub_extension.deactivate_sub_extension!(); }));
-		} catch (e) {
-			console.log(e);
-			throw (e);
-		}
-		console.log("done disposing 'AntistasiDevelopmentExtension'");
+
+
+
+		await Promise.all([
+			...this.commands.map((item) => { return item.dispose(); }),
+			...this.activated_sub_extensions.map((sub_extension) => { return ("dispose" in sub_extension) ? sub_extension.dispose!() : sub_extension.deactivate_sub_extension!(); })
+		]);
+
 	};
 };
 
@@ -94,6 +130,7 @@ export async function activate (context: vscode.ExtensionContext): Promise<any> 
 	context.subscriptions.push(antistasi_dev_extension);
 
 	await antistasi_dev_extension.start_up();
+
 
 
 }

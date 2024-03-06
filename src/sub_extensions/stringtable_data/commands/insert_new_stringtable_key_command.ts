@@ -2,18 +2,13 @@
 // region[Imports]
 
 import * as vscode from 'vscode';
-import * as path from "path";
-import * as fs from "fs-extra";
+
+import { StringTableDataStorage, StringtableEntry } from "../storage";
+
+import { SubExtensionCommand, AbstractCommand } from "#bases";
+import { new_stringtable_key_input } from "../misc";
 import * as utils from "#utilities";
 
-
-import { CustomCommand } from "typings/general";
-import { StringTableDataStorage, StringtableEntry } from "../storage";
-import { add_to_stringtable_file } from "../parsing";
-
-
-import { BaseCommand } from "#bases";
-import { new_stringtable_key_input } from "../misc";
 // endregion[Imports]
 
 
@@ -42,7 +37,7 @@ function is_InputNewStringtableKeyArguments (item: any): boolean {
 };
 
 
-export class InsertNewStringtableKeyCommand extends BaseCommand<StringtableEntry> {
+export class InsertNewStringtableKeyCommand extends AbstractCommand {
     protected readonly data: StringTableDataStorage;
 
     public readonly name: string = "antistasi.insert-stringtable-key";

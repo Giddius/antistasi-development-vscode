@@ -3,16 +3,15 @@
 
 import * as vscode from 'vscode';
 import * as path from "path";
-import * as fs from "fs-extra";
+
 import * as utils from "#utilities";
 
 
-import { CustomCommand } from "typings/general";
 import { StringTableDataStorage, StringtableEntry } from "../storage";
-import { add_to_stringtable_file } from "../parsing";
 
 
-import { BaseCommand } from "#bases";
+
+import { SubExtensionCommand, AbstractCommand } from "#bases";
 import { new_stringtable_key_input } from "../misc";
 // endregion[Imports]
 
@@ -20,7 +19,7 @@ import { new_stringtable_key_input } from "../misc";
 
 
 
-export class ConvertToStringtableKeyCommand extends BaseCommand<void> {
+export class ConvertToStringtableKeyCommand extends AbstractCommand {
     protected readonly data: StringTableDataStorage;
 
     public readonly name: string = "antistasi.convert-to-stringtable-key";

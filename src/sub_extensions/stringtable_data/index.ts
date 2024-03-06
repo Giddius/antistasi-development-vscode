@@ -5,12 +5,6 @@ import * as vscode from 'vscode';
 
 
 
-
-import * as path from "path";
-
-
-import * as fs from "fs-extra";
-
 import * as utils from "#utilities";
 
 import { StringTableDataStorage } from "./storage";
@@ -71,14 +65,16 @@ export async function activate_sub_extension (context: vscode.ExtensionContext):
 
 
     await vscode.commands.executeCommand('setContext', 'antistasiDevelopment.supportedFileextensions', STRINGTABLE_PROVIDER.allowed_file_name_extensions);
-    // vscode.commands.executeCommand('setContext', 'antistasiDevelopment.contextMenuEnabled', false);
 
 
 
-    const disposables: vscode.Disposable[][] = (await Promise.all([STRINGTABLE_DATA.register(context), STRINGTABLE_PROVIDER.register(context), INSERT_STRINGTABLE_COMMAND.register(context), CONVERT_TO_STRINGTABLE_COMMAND.register(context)]));
+
+    const disposables: vscode.Disposable[][] = (await Promise.all([STRINGTABLE_DATA.register(context), STRINGTABLE_PROVIDER.register(context)]));
     context.subscriptions.push(...disposables.flat());
 
 
+    await INSERT_STRINGTABLE_COMMAND.register(context);
+    await CONVERT_TO_STRINGTABLE_COMMAND.register(context);
 
     await STRINGTABLE_DATA.load_all();
     utils.sleep(3 * 1000).then(() => { STRINGTABLE_PROVIDER!.reload_problems(); });
@@ -93,15 +89,13 @@ export async function activate_sub_extension (context: vscode.ExtensionContext):
 
 
 export async function deactivate_sub_extension () {
-    await STRINGTABLE_PROVIDER?.clear();
 
-    await STRINGTABLE_DATA?.dispose();
-
+    await Promise.all([STRINGTABLE_PROVIDER?.clear(), STRINGTABLE_DATA?.dispose()]);
     STRINGTABLE_DATA = undefined;
     STRINGTABLE_PROVIDER = undefined;
 
 
-    // console.profileEnd();
+
 
 };
 

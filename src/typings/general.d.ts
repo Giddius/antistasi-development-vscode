@@ -41,21 +41,6 @@ export interface API {
 
 }
 
-export interface CustomCommand extends vscode.Disposable {
-    readonly name: string;
-
-
-
-    callSync?(...args: any[]): any;
-
-    callAsync (...args: any[]): Promise<any>;
-
-    callAsyncFromContext?(...args: any[]): Promise<any>;
-
-    register (context: vscode.ExtensionContext): Promise<vscode.Disposable[]>;
-
-    dispose (): void;
-}
 
 
 interface FoundString {
