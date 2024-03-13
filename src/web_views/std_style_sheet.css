@@ -59,7 +59,8 @@ code {
 
 
 .save-to-file-button,
-.copy-all-key-names-button {
+.copy-all-key-names-button,
+.copy-all-key-names-for-discord-button {
     display: block;
     min-width: 10rem;
     padding: 0.25rem;
