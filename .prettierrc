@@ -6,5 +6,8 @@
     "bracketSpacing": true,
     "endOfLine": "lf",
     "singleAttributePerLine": false,
-    "bracketSameLine": false
+    "bracketSameLine": false,
+    "printWidth": 200,
+    "trailingComma": "none",
+    "experimentalTernaries": true
 }
