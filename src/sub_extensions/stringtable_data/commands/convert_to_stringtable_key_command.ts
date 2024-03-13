@@ -52,12 +52,12 @@ export class ConvertToStringtableKeyCommand extends AbstractCommand {
             let m;
             let found = [];
             while ((m = regex.exec(line.text)) !== null) {
-                // This is necessary to avoid infinite loops with zero-width matches
+
                 if (m.index === regex.lastIndex) {
                     regex.lastIndex++;
                 }
 
-                // The result can be accessed through the `m`-variable.
+
                 found.push([m.index, regex.lastIndex]);
             };
             if (found.length <= 0) { return; }
@@ -67,9 +67,6 @@ export class ConvertToStringtableKeyCommand extends AbstractCommand {
                     break;
                 }
             }
-            // let _temp_text = editor.document.getText(selection);
-
-            // if (_temp_text.startsWith('"') || _temp_text.endsWith('"') || _temp_text.startsWith("'") || _temp_text.endsWith("'")) break;
 
             if (selection.start.character < 0) { return; }
 
