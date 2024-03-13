@@ -1,6 +1,7 @@
 {
     "Antistasi header comment": {
         "body": [
+            "",
             "/*",
             "Maintainer: $1",
             "",
@@ -21,7 +22,8 @@
             "",
             "Example:",
             "    $14",
-            "*/"
+            "*/",
+            ""
         ],
         "prefix": "header_comment",
         "description": "Antistasi header comment template for sqf files"
