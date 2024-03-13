@@ -2,7 +2,6 @@
 // region[Imports]
 
 import * as vscode from 'vscode';
-import * as path from "path";
 import { ALL_SUB_EXTENSIONS, ALL_ENABLED_SUB_EXTENSIONS, activate_all_sub_extensions, deactivate_all_sub_extensions } from "./sub_extensions";
 
 import { SubExtension } from "typings/general";
@@ -20,19 +19,28 @@ class GeneralDebugCommand extends FreeCommand {
 	public readonly name: string = "antistasi.generic-debug";
 	public readonly config_key: string = "antistasiDevelopment";
 
+	private _timeout?: NodeJS.Timeout;
 
 	constructor () {
 		super();
 	}
 
-	async something () {
-		return "I am the outer result";
-	}
-
 	protected async execute (...args: any[]): Promise<void> {
 
-		const result = await this.something().then((result) => { return result + " | " + "I am the inner result"; });
-		console.log(result);
+
+
+
+		async function _callback () {
+			console.log(`timer triggered at ${new Date().toTimeString()}`);
+			await vscode.commands.executeCommand("antistasi.only-scan-for-all-undefined-stringtable-keys");
+		}
+		this._timeout = setInterval(_callback, 90 * 1000);
+	}
+
+	public async dispose (): Promise<void> {
+		if (this._timeout) {
+			clearTimeout(this._timeout);
+		}
 
 	}
 
@@ -93,6 +101,7 @@ class AntistasiDevelopmentExtension implements vscode.Disposable {
 
 		for (const command of this.commands) {
 			await command.register(this.context);
+			this.context.subscriptions.push(command);
 		}
 
 		const activation_tasks: Promise<void>[] = [];
@@ -112,7 +121,6 @@ class AntistasiDevelopmentExtension implements vscode.Disposable {
 
 
 		await Promise.all([
-			...this.commands.map((item) => { return item.dispose(); }),
 			...this.activated_sub_extensions.map((sub_extension) => { return ("dispose" in sub_extension) ? sub_extension.dispose!() : sub_extension.deactivate_sub_extension!(); })
 		]);
 
@@ -121,7 +129,6 @@ class AntistasiDevelopmentExtension implements vscode.Disposable {
 
 
 export async function activate (context: vscode.ExtensionContext): Promise<any> {
-
 
 
 	if (!utils.is_inside_workspace()) { return; };

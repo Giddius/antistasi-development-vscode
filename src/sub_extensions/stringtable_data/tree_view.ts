@@ -1,14 +1,8 @@
 
 // region[Imports]
 
-import * as path from "path";
-import * as fs from "fs-extra";
 import * as vscode from "vscode";
-import * as general_typings from "typings/general";
-
-import * as bases from "#bases";
 import * as utils from "#utilities";
-
 import { StringTableDataStorage, StringtableFileData, StringtableEntry } from "./storage";
 import { FoundKey } from "./parsing";
 
@@ -49,7 +43,7 @@ const ENTRY_ICON = new vscode.ThemeIcon("key");
 
 const CONTAINER_ICON = new vscode.ThemeIcon("type-hierarchy");
 
-
+let SQF_LANGUAGE_AVAILABLE: boolean = false;
 
 type FilterFunction = (item: StringtableFileModel | StringtableContainerModel | StringtableEntryModel | StringtableUsageLocationModel) => boolean;
 
@@ -76,6 +70,12 @@ export class StringtableUsageLocationModel implements StringtableModel {
     }
 
 
+    public get command () {
+        const location = new vscode.Location(this.uri, this.usage_location.range);
+
+        return { command: "editor.action.goToLocations", arguments: [location.uri, location.range.start, [location], "goto", "No location"], title: "show" };
+    }
+
 
     public get info (): string | vscode.MarkdownString | undefined {
         if (!this.usage_location.full_line) {
@@ -84,7 +84,7 @@ export class StringtableUsageLocationModel implements StringtableModel {
         const text = new vscode.MarkdownString("", true);
         text.appendMarkdown(`- File: \`${this.usage_location.relative_path}\`\n- Line: \`${this.usage_location.start_line}\`\n---\n\n`);
 
-        text.appendCodeblock(`\n${this.usage_location.full_line}\n\n`, "js");
+        text.appendCodeblock(`\n${this.usage_location.full_line}\n\n`, (SQF_LANGUAGE_AVAILABLE) ? "sqf" : "javascript");
         text.appendMarkdown(`---`);
 
         return text;
@@ -401,7 +401,7 @@ export class StringTableTreeView implements vscode.TreeDataProvider<StringtableM
         this.stringtables_data = stringtables_data;
         this.models = [];
 
-        this.stringtables_data.onDataLoaded(() => this.reload());
+        this.stringtables_data.onDataLoaded(() => utils.sleep(1.5 * 1000).then(() => this.reload()));
         this.stringtables_data.onUsageLocationAdded((entry) => this.reload_entry(entry));
     }
 
@@ -421,6 +421,9 @@ export class StringTableTreeView implements vscode.TreeDataProvider<StringtableM
         tree_item.description = element.value;
         tree_item.tooltip = element.info;
         tree_item.resourceUri = element.uri;
+        if ("command" in element) {
+            tree_item.command = element.command as vscode.Command;
+        }
 
 
         return tree_item;
@@ -444,14 +447,14 @@ export class StringTableTreeView implements vscode.TreeDataProvider<StringtableM
 
 
     async resolveTreeItem (item: vscode.TreeItem, element: StringtableModel, token: vscode.CancellationToken): Promise<vscode.TreeItem | undefined> {
-        if (element instanceof StringtableUsageLocationModel) {
-            const found_key = element.usage_location as FoundKey;
+        // if (element instanceof StringtableUsageLocationModel) {
+        //     const found_key = element.usage_location as FoundKey;
 
-            const location = new vscode.Location(vscode.Uri.file(found_key.file), found_key.range);
-            if (location) {
-                item.command = { command: "editor.action.goToLocations", arguments: [location.uri, location.range.start, [location], "goto", "No location"], title: "show" };
-            }
-        }
+        //     const location = new vscode.Location(found_key.uri, found_key.range);
+        //     if (location) {
+        //         item.command = { command: "editor.action.goToLocations", arguments: [location.uri, location.range.start, [location], "goto", "No location"], title: "show" };
+        //     }
+        // }
 
 
         return item;
@@ -463,7 +466,8 @@ export class StringTableTreeView implements vscode.TreeDataProvider<StringtableM
 
 
     async load (): Promise<void> {
-        console.log(`loading StringTableTreeView`);
+        console.log(`load called`);
+        SQF_LANGUAGE_AVAILABLE = ((await vscode.languages.getLanguages()).map((item) => { return item.toLowerCase(); }).includes("sqf"));
         this.models = this.stringtables_data.all_stringtable_file_data_items.map((item) => { return new StringtableFileModel(item, this.filter_function); });
         await Promise.all(this.models.map((item) => { item.show_container = false; return item.load(); }));
 
@@ -472,9 +476,11 @@ export class StringTableTreeView implements vscode.TreeDataProvider<StringtableM
     }
 
     async reload (): Promise<void> {
+        console.log(`reload called`);
+
         this.models = [];
         this._onDidChangeTreeData.fire(undefined);
-        await utils.sleep(1);
+        await utils.sleep(50);
         await this.load();
     }
 

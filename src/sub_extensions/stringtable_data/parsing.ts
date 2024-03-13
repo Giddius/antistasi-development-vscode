@@ -1,16 +1,13 @@
+// region[Imports]
+
 import * as xml2js from "xml2js";
 import * as vscode from 'vscode';
-
 import * as fs from "fs-extra";
 import * as path from "path";
-import { randomInt, randomUUID } from "crypto";
 import * as utils from "#utilities";
-
-
-
 import { StringtableEntry } from "./storage";
-import { profile, profileEnd } from "console";
 
+// endregion[Imports]
 
 interface FoundKeyJsonData {
     name: string;
@@ -32,16 +29,24 @@ export class FoundKey {
     private indexes: [number, number];
     private _range: vscode.Range | undefined;
     private _relative_path: string | undefined;
+    private _uri: vscode.Uri | undefined;
 
 
     constructor (text: string, line_number: number, start_index: number, end_index: number, file: string, full_line?: string) {
-        this.text = text;
+        this.text = String(text);
         this.indexes = [start_index, end_index];
         this.line_number = line_number;
         this.file = path.resolve(file);
-        this.full_line = full_line;
-
+        this.full_line = String(full_line);
     };
+
+
+    public get uri (): vscode.Uri {
+        if (!this._uri) {
+            this._uri = vscode.Uri.file(this.file);
+        }
+        return this._uri;
+    }
 
 
     public get relative_path (): string {
@@ -60,7 +65,7 @@ export class FoundKey {
     }
 
     public get start_line (): number {
-        return this.line_number - 1;
+        return this.line_number;
     }
 
 
@@ -70,7 +75,7 @@ export class FoundKey {
 
 
     public get end_line (): number {
-        return this.line_number - 1;
+        return this.line_number;
     }
 
 
@@ -117,10 +122,6 @@ const STRINGTABLE_CLEAN_PATTERN = /^\$/g;
 async function* _get_all_matches (in_file: vscode.Uri, in_line: string, in_line_number: number) {
 
 
-    if (in_line.trim().length <= 5) {
-        return;
-    }
-
 
     function clean_text (in_text: string): string {
         return in_text.trim().replace(STRINGTABLE_CLEAN_PATTERN, ``);
@@ -137,10 +138,54 @@ async function* _get_all_matches (in_file: vscode.Uri, in_line: string, in_line_
 
 
 };
+const BLOCK_COMMENT_BEGIN_REGEX = /\/\*/;
+const BLOCK_COMMENT_END_REGEX = /\*\//;
+
+const LINE_COMMENT_BEGIN_REGEX = /\/\//;
 
 export async function* find_all_stringtable_keys (file: vscode.Uri): AsyncGenerator<FoundKey> {
+    let inside_comment: boolean = false;
+
+
+
     for await (const line of utils.iter_file_lines_best_algo(file.fsPath)) {
+        if (line.isEmptyOrWhitespace) {
+            continue;
+        }
+        if (inside_comment) {
+            const end_block_comment_index = line.text.search(BLOCK_COMMENT_END_REGEX);
+            if (end_block_comment_index === -1) {
+                // await utils.sleep(0);
+                continue;
+            } else {
+                inside_comment = false;
+                const sub_line = line.text.substring(end_block_comment_index);
+                const filled_sub_line = " ".repeat(line.text.length - sub_line.length) + sub_line;
+                yield* _get_all_matches(file, filled_sub_line, line.lineNumber);
+                continue;
+            }
+        }
+
+        const start_line_comment_index = line.text.search(LINE_COMMENT_BEGIN_REGEX);
+
+        if (start_line_comment_index !== -1) {
+            yield* _get_all_matches(file, line.text.substring(0, start_line_comment_index), line.lineNumber);
+            continue;
+        }
+
+        const start_block_comment_index = line.text.search(BLOCK_COMMENT_BEGIN_REGEX);
+        if (start_block_comment_index !== -1) {
+            inside_comment = true;
+            yield* _get_all_matches(file, line.text.substring(0, start_block_comment_index), line.lineNumber);
+            continue;
+        }
+
+        if (line.text.trim().length <= 4) {
+            continue;
+        }
+
         yield* _get_all_matches(file, line.text, line.lineNumber);
+
     }
 
 }
@@ -218,7 +263,7 @@ export async function parse_xml_file_async (file: vscode.Uri): Promise<XMLResult
     let all_keys = new Array<StringtableEntry>();
     let all_container_names = new Set<string>();
 
-    const result = await xml2js.parseStringPromise(xml_text, { chunkSize: 1 * 1000, async: true });
+    const result = await xml2js.parseStringPromise(xml_text, {});
     if ((!result) || (!result.Project) || (!result.Project.Package)) { return { found_keys: all_keys, found_container_names: Array.from(all_container_names).sort() }; }
     for (let _package of result.Project.Package) {
         if (!_package.Container) { continue; }

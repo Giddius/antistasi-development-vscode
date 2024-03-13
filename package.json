@@ -15,7 +15,7 @@
     "homepage": "https://github.com/Giddius/antistasi-development-vscode/blob/main/README.md",
     "version": "0.4.2",
     "engines": {
-        "vscode": "^1.83.0"
+        "vscode": "^1.87.0"
     },
     "enableTelemetry": false,
     "categories": [
@@ -170,8 +170,12 @@
         },
         "snippets": [
             {
-                "language": "sqf",
-                "path": "./src/snippets/sqf.json"
+                "path": "./src/snippets/sqf.json",
+                "language": "plaintext"
+            },
+            {
+                "path": "./src/snippets/sqf.json",
+                "language": "sqf"
             }
         ],
         "configuration": [
@@ -245,10 +249,10 @@
         "publish_prerelease": "vsce package --pre-release"
     },
     "devDependencies": {
-        "@types/async-lock": "^1.4.2",
         "@types/fs-extra": "^11.0.4",
+        "@types/minimatch": "^5.1.2",
         "@types/mocha": "^10.0.2",
-        "@types/node": "18.x",
+        "@types/node": "^18.19.22",
         "@types/sqlite3": "^3.1.11",
         "@types/vscode": "^1.83.0",
         "@types/xml2js": "^0.4.14",
@@ -256,7 +260,6 @@
         "@typescript-eslint/parser": "^6.18.1",
         "@vscode/test-electron": "^2.3.4",
         "@vscode/vsce": "^2.23.0",
-        "@types/minimatch": "^5.1.2",
         "eslint": "^8.56.0",
         "eslint-config-prettier": "^9.1.0",
         "mkdirp": "^3.0.1",
@@ -266,7 +269,7 @@
         "typescript": "^5.3.3"
     },
     "dependencies": {
-        "async-lock": "^1.4.1",
+        "async-mutex": "^0.5.0",
         "fs-extra": "^11.2.0",
         "minimatch": "^9.0.3",
         "reflect-metadata": "^0.2.1",

@@ -2,28 +2,18 @@
 
 import * as vscode from 'vscode';
 import { parse_xml_file_async, get_location, add_to_stringtable_file, parse_stringtable_locations, FoundKey } from "./parsing";
-
 import * as utils from "#utilities";
-
 import * as path from "path";
-
-
 import * as fs from "fs-extra";
-
 import * as utilities from "../../utilities";
-
-
-import AsyncLock from "async-lock";
-
 import { StringtableDataLoadedEvent } from "typings/general";
-
 import * as crypto from "crypto";
-
 import sqlite3 from 'sqlite3';
 import * as sqlite from 'sqlite';
-
 import AvailableData from "./data";
 import { FreeCommand, AbstractCommand } from "#bases";
+import { Mutex, MutexInterface, Semaphore, SemaphoreInterface, withTimeout } from 'async-mutex';
+
 // endregion[Imports]
 
 
@@ -33,7 +23,7 @@ const DB_BUILD_SQL_SCRIPT_PATH = AvailableData.get_resource("builtin_arma_string
 
 
 
-const ENTRY_QUERY = `SELECT
+const ENTRY_QUERY: string = `SELECT
     EXISTS (
         SELECT
             *
@@ -41,7 +31,7 @@ const ENTRY_QUERY = `SELECT
             StringtableKeyHashes skh
         WHERE
             skh.key_hash=upper(?)
-    ) AS does_exists;`;
+    ) AS does_exists;` as const;
 
 
 
@@ -51,7 +41,7 @@ export interface StringtableEntryInterface {
     readonly is_builtin: boolean;
     exact_key_name: string;
     standardized_name: string;
-
+    normalized_name: string;
 
     text: string;
     package_name: string;
@@ -63,7 +53,7 @@ export interface StringtableEntryInterface {
 
     get_location (): Promise<vscode.Location | undefined>;
     get_hover_text (): vscode.MarkdownString;
-    add_usage_location (found_key: FoundKey): Promise<void>;
+    add_usage_location (found_key: FoundKey): Promise<boolean>;
 
 };
 
@@ -111,7 +101,9 @@ export class StringtableEntry implements StringtableEntryInterface {
     public get standardized_name (): string {
         return this.key_name.toUpperCase();
     }
-
+    public get normalized_name (): string {
+        return this.key_name.trim().toLowerCase();
+    }
 
     public get exact_key_name (): string {
         if (!this._exact_key_name) {
@@ -121,15 +113,16 @@ export class StringtableEntry implements StringtableEntryInterface {
     }
 
 
-    async add_usage_location (found_key: FoundKey): Promise<void> {
+    async add_usage_location (found_key: FoundKey): Promise<boolean> {
         for (const existing_found_key of this.usage_locations) {
             if ((existing_found_key.relative_path === found_key.relative_path)
                 && (existing_found_key.start_line === found_key.start_line)
                 && (existing_found_key.start_char === found_key.start_char)) {
-                return;
+                return false;
             }
         }
         this.usage_locations.push(found_key);
+        return true;
     };
 
 
@@ -275,7 +268,9 @@ export class BuiltinStringtableEntry implements StringtableEntryInterface {
     public get standardized_name (): string {
         return this.key_name.toUpperCase();
     }
-
+    public get normalized_name (): string {
+        return this.key_name.trim().toLowerCase();
+    }
     public get exact_key_name (): string {
         if (!this._exact_key_name) {
             return this.key_name;
@@ -289,8 +284,8 @@ export class BuiltinStringtableEntry implements StringtableEntryInterface {
     }
 
 
-    async add_usage_location (found_key: FoundKey): Promise<void> {
-
+    async add_usage_location (found_key: FoundKey): Promise<boolean> {
+        return false;
     };
     async get_location (): Promise<vscode.Location | undefined> {
         return undefined;
@@ -312,6 +307,7 @@ export class BuiltinStringtableEntry implements StringtableEntryInterface {
 }
 
 export class StringtableData {
+
     protected data: Map<string, StringtableEntry>;
     protected _name: string | undefined = undefined;
 
@@ -362,13 +358,23 @@ export class StringtableData {
 
 
     public clear (): void {
-        this.data = new Map<string, StringtableEntry>();
+        // this.data = new Map<string, StringtableEntry>();
+        for (const entry of this.data.values()) {
+            entry.usage_locations.splice(0, entry.usage_locations.length);
+        }
+        this.data.clear();
+
+
     };
 
 
     public async reload (): Promise<StringtableData> {
         return this;
     };
+
+    public async dispose (): Promise<void> {
+
+    }
 
     get [Symbol.toStringTag] () {
 
@@ -385,14 +391,21 @@ export interface EntryQueryResult {
     package_name: string,
     file_path: string;
 
+
 }
 
 export class StringtableBuiltinData extends StringtableData {
     db_path: string;
+    protected db_connection?: sqlite.Database<sqlite3.Database, sqlite3.Statement>;
+    protected db_connection_lock: Mutex = new Mutex();
+
+
 
     constructor (db_path: string) {
         super();
         this.db_path = path.normalize(db_path);
+
+
     };
 
 
@@ -409,21 +422,20 @@ export class StringtableBuiltinData extends StringtableData {
     };
 
 
-    public async get_key_names_from_partial_key (partial_key: string): Promise<string[]> {
-        return [];
 
-
-
-
-    };
 
     public async reload (): Promise<StringtableData> {
-        this.delete_db();
-        await this.create_db();
+
+        await this.close_db_connection();
+
+        this.db_connection = await this.get_db_connection();
+
         return this;
+
     };
 
-    protected async create_db () {
+    async create_db () {
+        console.log(`creating DB because this.db_exists: ${this.db_exists}`);
         try {
 
             await fs.ensureDir(path.dirname(this.db_path));
@@ -432,11 +444,14 @@ export class StringtableBuiltinData extends StringtableData {
             console.error(`dir creation error ${e}`);
             return;
         }
-
+        if (this.db_exists) {
+            await this.delete_db();
+        }
         const conn = await sqlite.open({ filename: this.db_path, driver: sqlite3.Database, mode: sqlite3.OPEN_CREATE | sqlite3.OPEN_READWRITE | sqlite3.OPEN_FULLMUTEX });
         try {
 
             await conn.exec(await DB_BUILD_SQL_SCRIPT_PATH.read_text());
+            utils.sleep(100);
         } catch (e) {
             console.error(`db creation error ${e}`);
 
@@ -447,51 +462,75 @@ export class StringtableBuiltinData extends StringtableData {
     };
 
     protected async get_db_connection () {
-        if (!await fs.exists(this.db_path)) {
+        if (!this.db_exists) {
             await this.create_db();
         }
-        return await sqlite.open({ filename: this.db_path, driver: sqlite3.Database, mode: sqlite3.OPEN_READONLY | sqlite3.OPEN_FULLMUTEX });
-    };
+        const connection = await sqlite.open({ filename: this.db_path, driver: sqlite3.Database, mode: sqlite3.OPEN_READONLY | sqlite3.OPEN_FULLMUTEX });
+        connection.getDatabaseInstance().configure("busyTimeout", 10 * 1000);
+        console.log(`connection.getDatabaseInstance().getMaxListeners(): ${connection.getDatabaseInstance().getMaxListeners()}`);
+        connection.getDatabaseInstance().parallelize();
+        return connection;
+    }
 
+    protected async close_db_connection () {
+
+        await this.db_connection_lock.runExclusive(async () => {
+
+            if (this.db_connection) {
+
+                await this.db_connection.close();
+            }
+
+            this.db_connection = undefined;
+        });
+    }
 
     protected async query_entry (key_name: string) {
 
-        const db_connection = await this.get_db_connection();
+        await this.db_connection_lock.runExclusive(async () => {
 
-        try {
-            const normalized_key = this._normalize_key(key_name);
+            if (!this.db_connection) {
+                this.db_connection = await this.get_db_connection();
+            }
 
-            const hashed_key: string = crypto.createHash("sha256").update(normalized_key, "utf8").digest("hex");
+        });
 
-            const res = await db_connection.get(ENTRY_QUERY, hashed_key);
+        const normalized_key = this._normalize_key(key_name);
 
-
-            const exists = res.does_exists as boolean;
-
-            if (!exists) {
-
-                return;
-            };
-
-            const result = new BuiltinStringtableEntry(key_name);
+        const hashed_key: string = crypto.createHash("sha256").update(normalized_key, "utf8").digest("hex");
 
 
 
-            return result;
+        const res = await this.db_connection!.get(ENTRY_QUERY, hashed_key);
 
 
-        } finally {
-            db_connection.close();
-        }
+        const exists = res.does_exists as boolean;
+
+        if (!exists) {
+
+            return;
+        };
+
+        const result = new BuiltinStringtableEntry(key_name);
+
+
+
+        return result;
+
+
+
     };
 
+
     public clear (): void {
-        this.delete_db();
+        this.close_db_connection();
+
+
 
     }
 
     public async get_entry (key: string): Promise<BuiltinStringtableEntry | undefined> {
-        return this.query_entry(key);
+        return await this.query_entry(key);
 
     };
 
@@ -501,17 +540,29 @@ export class StringtableBuiltinData extends StringtableData {
         return true;
     }
 
-    public delete_db (): void {
-        if (this.db_exists) {
-            fs.removeSync(this.db_path);
-        }
+    public async delete_db (): Promise<void> {
+
+
+
+        console.log(`pre-delete DB, status -> this.db_exists: ${this.db_exists}`);
+
+        const tasks = [
+            this.close_db_connection(),
+            fs.remove(this.db_path).then(() => { console.log(`deleted DB, result -> this.db_exists: ${this.db_exists}`); })
+        ];
+
+
+
+
+        await Promise.all(tasks);
 
 
     };
 
 
     async dispose (): Promise<void> {
-        this.delete_db();
+        return await this.delete_db();
+
     };
 
     get [Symbol.toStringTag] () {
@@ -546,24 +597,7 @@ export class StringtableFileData extends StringtableData {
 
         return this._name;
     };
-    public async get_key_names_from_partial_key (partial_key: string): Promise<string[]> {
 
-        function any_parts_match (key_parts: string[], partial_key_parts: string[]): boolean {
-            let res = key_parts.some((value) => partial_key_parts.some((_value) => value.startsWith(_value)));
-            return res;
-        };
-
-        const possible_keys: string[] = [];
-        for (const [key, entry] of this.data.entries()) {
-            if (key.toLowerCase().startsWith(partial_key)) {
-                possible_keys.push(entry.exact_key_name);
-            };
-        };
-
-
-        return Array.from(new Set(possible_keys));
-
-    };
     public async get_all_key_names (): Promise<string[]> {
 
         return Array.from(this.data.values()).map((value) => value.exact_key_name);
@@ -640,7 +674,7 @@ export class StringtableFileData extends StringtableData {
             console.error(`Error occured while processing Stringtable file '${this.file_path}'! ---------------> ${error}`);
             this.is_parseable = false;
         };
-
+        console.log(`${this[Symbol.toStringTag]} this.data.size: ${this.data.size}`);
         return this;
     };
     get [Symbol.toStringTag] () {
@@ -651,7 +685,7 @@ export class StringtableFileData extends StringtableData {
 
 
 export class StringTableDataStorage {
-    icon_map: Map<string, vscode.ThemeIcon | vscode.Uri> = new Map([
+    icon_map: ReadonlyMap<string, vscode.ThemeIcon | vscode.Uri> = new Map([
         ["gear",
             new vscode.ThemeIcon("gear")],
         ["core",
@@ -673,8 +707,8 @@ export class StringTableDataStorage {
     ]);
 
     private dynamic_data: Array<StringtableFileData>;
+
     private static_data: Array<StringtableBuiltinData>;
-    private readonly lock: AsyncLock;
     private readonly _onDataLoadedEmitter: vscode.EventEmitter<StringtableDataLoadedEvent>;
 
     public readonly onDataLoaded: vscode.Event<StringtableDataLoadedEvent>;
@@ -692,19 +726,27 @@ export class StringTableDataStorage {
 
     public last_reloaded_at: number = 0;
 
-    private is_updating: boolean = false;
+
+
+
+
+    private reloading_lock: Mutex = new Mutex();
+
+    private reload_timer?: NodeJS.Timeout;
 
     constructor () {
         this._onDataLoadedEmitter = new vscode.EventEmitter();
         this.onDataLoaded = this._onDataLoadedEmitter.event;
         this._onAllDataLoadedEmitter = new vscode.EventEmitter();
         this.onAllDataLoaded = this._onAllDataLoadedEmitter.event;
-        this.lock = new AsyncLock();
         this.dynamic_data = [];
+
         this.static_data = [];
         this.undefined_cache = new Set<string>();
         this._onUsageLocationAddedEmitter = new vscode.EventEmitter();
         this.onUsageLocationAdded = this._onUsageLocationAddedEmitter.event;
+
+
 
     };
 
@@ -722,7 +764,16 @@ export class StringTableDataStorage {
         return Array.from(new Set(all_key_names));
     }
 
-
+    async make_combined_dynamic_data_map (): Promise<Map<string, StringtableEntry>> {
+        // console.log(`making combined_dynamic_data_map`);
+        const _data: Map<string, StringtableEntry> = new Map();
+        for (const file_data of this.dynamic_data) {
+            for (const entry_data of await file_data.get_all_items()) {
+                _data.set(entry_data.normalized_name, entry_data);
+            }
+        }
+        return _data;
+    }
 
     public get all_stringtable_names (): string[] {
 
@@ -741,38 +792,36 @@ export class StringTableDataStorage {
         return Array.from(this.dynamic_data);
     }
 
-    public async load_data (files: vscode.Uri[], priority: boolean = false): Promise<StringtableFileData[]> {
-        const res = await this.lock.acquire("data", async () => {
-            this.is_updating = true;
-            try {
-                const tasks: Promise<StringtableFileData>[] = [];
-                const to_add: Array<StringtableFileData> = [];
-                const _changed_files: StringtableFileData[] = [];
+    public load_data (files: vscode.Uri[], priority: boolean = false): Promise<StringtableFileData[]> {
+        return this.reloading_lock.runExclusive(async () => {
+
+            const tasks: Promise<StringtableFileData>[] = [];
+            const to_add: Array<StringtableFileData> = [];
+            const _changed_files: StringtableFileData[] = [];
 
 
-                const _dynamic_data_map: ReadonlyMap<string, StringtableFileData> = new Map<string, StringtableFileData>(this.dynamic_data.map((item) => [item.uri.path, item]));
-                for (let file of files) {
-                    let _existing_stringtable_data = _dynamic_data_map.get(file.path);
+            const _dynamic_data_map: ReadonlyMap<string, StringtableFileData> = new Map<string, StringtableFileData>(this.dynamic_data.map((item) => [item.uri.path, item]));
+            for (let file of files) {
+                let _existing_stringtable_data = _dynamic_data_map.get(file.path);
 
-                    if (_existing_stringtable_data === undefined) {
+                if (_existing_stringtable_data === undefined) {
 
-                        _existing_stringtable_data = new StringtableFileData(file.fsPath);
-                        _existing_stringtable_data.icon = this.icon_map.get(_existing_stringtable_data.name);
-                        to_add.push(_existing_stringtable_data);
-                    };
-                    tasks.push(_existing_stringtable_data.reload());
-                    _changed_files.push(_existing_stringtable_data);
-
-
+                    _existing_stringtable_data = new StringtableFileData(file.fsPath);
+                    _existing_stringtable_data.icon = this.icon_map.get(_existing_stringtable_data.name);
+                    to_add.push(_existing_stringtable_data);
                 };
-                this.dynamic_data = this.dynamic_data.concat(to_add);
-                return await Promise.all(tasks).then((value) => { this._onDataLoadedEmitter.fire({ changed_files: _changed_files as ReadonlyArray<StringtableFileData> }); return value; });
-            } finally {
-                this.is_updating = false;
-            }
-        }, { skipQueue: priority, maxPending: 1000 });
+                tasks.push(_existing_stringtable_data.reload());
+                _changed_files.push(_existing_stringtable_data);
 
-        return res;
+
+            };
+            this.dynamic_data = this.dynamic_data.concat(to_add);
+
+            return await Promise.all(tasks).then((value) => { this._onDataLoadedEmitter.fire({ changed_files: _changed_files as ReadonlyArray<StringtableFileData> }); return value; });
+
+
+
+        }, 100);
     };
 
 
@@ -783,44 +832,99 @@ export class StringTableDataStorage {
     };
 
     private async load_static_data (): Promise<StringtableBuiltinData[]> {
+
         const db_path = path.join(this.context!.globalStorageUri.fsPath, "builtin_arma_stringtable_data.db");
         const static_data_item = new StringtableBuiltinData(db_path);
+        await static_data_item.create_db();
         await static_data_item.reload();
         return [static_data_item];
 
     };
 
     public async load_all (): Promise<void> {
-        console.log(`loading all Stringtable-Data`);
+
+        let amount_locations: number = 0;
+
+        for (const dyn_data_item of this.dynamic_data) {
+            for (const entry of await dyn_data_item.get_all_items()) {
+                amount_locations += entry.usage_locations.length;
+            }
+        }
+
+
+        console.log(`amount all usage_locations: ${amount_locations}`);
+        console.log(`this.undefined_cache.size: ${this.undefined_cache.size}`);
         await this.clear();
+
         this.dynamic_data = new Array<StringtableFileData>().concat(await this.load_data(await this.find_all_stringtable_files(), true));
-        this.static_data = await this.load_static_data();
+
+
+        await Promise.all(this.static_data.map((static_data_item) => { return static_data_item.reload(); }));
         this._onAllDataLoadedEmitter.fire();
         this.last_reloaded_at = Date.now() / 1000;
+
+        console.log(`this.dynamic_data.length: ${this.dynamic_data.length}`);
+        console.log(`this.static_data.length: ${this.static_data.length}`);
     };
 
     public async get_data_item_for_file (file: vscode.Uri): Promise<StringtableFileData | undefined> {
+        await this.reloading_lock.waitForUnlock();
 
-        return this.dynamic_data.filter((value) => { return (path.normalize(value.uri.fsPath) === path.normalize(file.fsPath)) || (value.is_responsible(file.fsPath)); }).at(0);
+        for (const dynamic_data_item of Array.from(this.dynamic_data)) {
+            if ((dynamic_data_item.is_responsible(file.fsPath)) || (path.normalize(dynamic_data_item.uri.fsPath) === path.normalize(file.fsPath))) {
+                return dynamic_data_item;
+            }
+
+        }
+
     };
     public async get_data_item_for_name (name: string): Promise<StringtableFileData | undefined> {
+        await this.reloading_lock.waitForUnlock();
+
         return this.dynamic_data.filter((value) => { return (value.name.toLowerCase() === name.toLowerCase()); }).at(0);
     };
     public async get_entry (key: string, file?: string): Promise<StringtableEntryInterface | undefined> {
 
-        while (this.is_updating) {
-            await utils.sleep(0.1 * 1000);
-        }
+        await this.reloading_lock.waitForUnlock();
 
 
         if (this.undefined_cache.has(key.toLowerCase())) { return; };
-        try {
 
 
 
-            let found_entry: StringtableEntryInterface | undefined;
-            for (const _data of this.dynamic_data) {
-                if (!_data.is_responsible(file)) { continue; }
+        let found_entry: StringtableEntryInterface | undefined;
+
+
+
+        let non_responsible_queue: StringtableFileData[] = [];
+
+        for (const _data of this.dynamic_data) {
+            if (_data.is_responsible(file)) {
+                const entry = await _data.get_entry(key);
+                if (entry) {
+                    found_entry = entry;
+                    break;
+                };
+            } else {
+                non_responsible_queue.push(_data);
+            }
+
+        };
+        if (!found_entry) {
+            for (const _data of non_responsible_queue) {
+                const entry = await _data.get_entry(key);
+                if (entry) {
+                    found_entry = entry;
+                    break;
+                };
+
+            }
+        }
+        if (!found_entry) {
+
+
+
+            for (const _data of this.static_data) {
                 const entry = await _data.get_entry(key);
                 if (entry) {
                     found_entry = entry;
@@ -828,64 +932,21 @@ export class StringTableDataStorage {
                 };
 
             };
-            if (!found_entry) {
-                for (const _data of this.dynamic_data) {
-                    const entry = await _data.get_entry(key);
-                    if (entry) {
-                        found_entry = entry;
-                        break;
-                    };
 
-                }
-            }
-            if (!found_entry) {
-
-
-
-                for (const _data of this.static_data) {
-                    const entry = await _data.get_entry(key);
-                    if (entry) {
-                        found_entry = entry;
-                        break;
-                    };
-
-                };
-
-            };
-
-            if (!found_entry) {
-                this.undefined_cache.add(key.toLowerCase());
-
-            }
-            return found_entry;
-        } catch (error) {
-            console.error(error);
         };
 
+        if (!found_entry) {
+            this.undefined_cache.add(key.toLowerCase());
 
-    };
-
-
-    public async get_possible_entries (partial_key: string, file?: string): Promise<string[]> {
-
-        partial_key = partial_key.toLowerCase();
-        const possible_entries: string[] = [];
-        let dynamic_data = Array.from(this.dynamic_data);
-
-        if (file) {
-            dynamic_data = dynamic_data.sort((a, b) => Number(a.is_responsible(file)) - Number((b.is_responsible(file))));
         }
-        for (let _data of dynamic_data) {
-
-            possible_entries.push(...await _data.get_key_names_from_partial_key(partial_key));
-
-
-        };
+        return found_entry;
 
 
 
-        return Array.from(new Set(possible_entries));
     };
+
+
+
 
     public async add_usage_location (found_key: FoundKey) {
         const entry = await this.get_entry(found_key.text, found_key.file);
@@ -894,21 +955,20 @@ export class StringTableDataStorage {
         }
 
 
-        await entry.add_usage_location(found_key);
-        this._onUsageLocationAddedEmitter.fire(entry);
+
+        entry.add_usage_location(found_key).then((was_added: boolean) => { if (was_added === true) { this._onUsageLocationAddedEmitter.fire(entry); } });
     }
 
     public async clear (): Promise<void> {
 
+        return await this.reloading_lock.runExclusive(async () => {
 
-        return await this.lock.acquire("data", async () => {
 
-            this.dynamic_data = [];
-            this.static_data = [];
+            await Promise.all(this.dynamic_data.splice(0, this.dynamic_data.length).map((item) => { return item.dispose(); }));
+
             this.undefined_cache.clear();
 
-
-        }, { skipQueue: true });
+        }, 1000);
 
     };
 
@@ -943,13 +1003,21 @@ export class StringTableDataStorage {
         this.context = context;
 
 
+        if (this.static_data.length <= 0) {
+            this.static_data = await this.load_static_data();
+            for (const static_data of this.static_data) {
+                this.context!.subscriptions.unshift(static_data);
 
+            }
+        }
 
 
         const disposables: vscode.Disposable[] = [];
 
 
+
         disposables.push(this._onDataLoadedEmitter);
+        disposables.push(this._onAllDataLoadedEmitter);
 
 
         const git_watcher = vscode.workspace.createFileSystemWatcher(utilities.convert_to_case_insensitive_glob_pattern("**/.git/HEAD"), undefined, undefined, true);
@@ -967,6 +1035,8 @@ export class StringTableDataStorage {
 
         disposables.push(stringtable_watcher);
 
+        this.reload_timer = setInterval(() => this.load_all(), 5 * 60 * 1000);
+
 
 
 
@@ -978,8 +1048,12 @@ export class StringTableDataStorage {
 
 
     async dispose (): Promise<void> {
-        await Promise.all(this.static_data.map((item) => { return item.dispose(); }));
+        if (this.reload_timer) {
+            clearInterval(this.reload_timer);
+        }
+
         await this.clear();
+        await utils.sleep(1000);
     };
 
 

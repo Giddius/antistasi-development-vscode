@@ -11,13 +11,44 @@
 			"request": "launch",
 			"args": [
 				"--extensionDevelopmentPath=${workspaceFolder}",
-				// "--disable-extensions"
 			],
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
 			],
 			"preLaunchTask": "${defaultBuildTask}",
 			"envFile": "${workspaceFolder}/debug.env",
+			"presentation": {
+				"hidden": false,
+				"group": "extension_debug",
+				"order": 1
+			}
+		},
+		{
+			"name": "Run Extension - other Extensions disabled",
+			"type": "extensionHost",
+			"request": "launch",
+			"args": [
+				"--extensionDevelopmentPath=${workspaceFolder}",
+				"--disable-extensions",
+			],
+			"outFiles": [
+				"${workspaceFolder}/out/**/*.js"
+			],
+			"preLaunchTask": "${defaultBuildTask}",
+			"envFile": "${workspaceFolder}/debug.env",
+			"debugWebviews": true,
+			"presentation": {
+				"hidden": false,
+				"group": "extension_debug",
+				"order": 2,
+			},
+			"resolveSourceMapLocations": [
+				"${workspaceFolder}/**",
+				"!**/node_modules/**"
+			],
+			"showAsyncStacks": true,
+			"sourceMaps": true,
+			"trace": false,
 		},
 		{
 			"name": "Extension Tests",

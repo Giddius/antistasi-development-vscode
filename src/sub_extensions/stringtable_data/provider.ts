@@ -5,7 +5,8 @@ import * as vscode from 'vscode';
 import * as path from "path";
 import * as utils from "#utilities";
 import { StringTableDataStorage, StringtableData, StringtableFileData, StringtableBuiltinData, StringtableEntry } from "./storage";
-import { randomInt, randomUUID } from "crypto";
+import { randomInt, randomUUID, getHashes } from "crypto";
+import * as fs from "fs-extra";
 
 
 import { StringtableDataLoadedEvent } from "typings/general";
@@ -13,13 +14,11 @@ import AsyncLock from "async-lock";
 
 
 import { create_undefined_stringtable_keys_result_web_view } from "../../web_views/undefined_stringtable_keys_view";
-import { promises } from "fs-extra";
 
 import { FoundKey, find_all_stringtable_keys, STRINGTABLE_KEY_PATTERN } from "./parsing";
 
 
 import { StringTableTreeView } from "./tree_view";
-import { profile, profileEnd } from "console";
 
 // endregion[Imports]
 
@@ -27,12 +26,11 @@ import { profile, profileEnd } from "console";
 
 
 
-
-export class StringTableProvider implements vscode.HoverProvider, vscode.DefinitionProvider, vscode.CodeActionProvider, vscode.CodeActionProviderMetadata, vscode.CompletionItemProvider {
+export class StringTableProvider implements vscode.HoverProvider, vscode.DefinitionProvider, vscode.CodeActionProvider, vscode.CodeActionProviderMetadata {
 
     public readonly config_key: string = "antistasiDevelopment.stringtable_data";
 
-    public static basic_allowed_file_name_extensions: string[] = [
+    public readonly basic_allowed_file_name_extensions: string[] = [
         ".sqf",
         ".sqm",
         ".cpp",
@@ -49,7 +47,7 @@ export class StringTableProvider implements vscode.HoverProvider, vscode.Definit
     protected current_completion_list: vscode.CompletionList | undefined;
     protected tree_view: StringTableTreeView;
     readonly providedCodeActionKinds: vscode.CodeActionKind[] = [vscode.CodeActionKind.QuickFix];
-    private readonly problem_handling_lock: AsyncLock;
+
     private scan_for_all_undefined_keys_command_is_running: boolean;
     _key_icon?: vscode.ThemeIcon;
 
@@ -58,7 +56,7 @@ export class StringTableProvider implements vscode.HoverProvider, vscode.Definit
         this.data = stringtable_data;
         this.diagnostic_collection = vscode.languages.createDiagnosticCollection("antistasi-development");
         this.problems_handling_timeouts = new Map<vscode.Uri, NodeJS.Timeout>();
-        this.problem_handling_lock = new AsyncLock();
+
         this.scan_for_all_undefined_keys_command_is_running = false;
         this._key_icon = new vscode.ThemeIcon("key");
         this.tree_view = new StringTableTreeView(this.data);
@@ -112,11 +110,7 @@ export class StringTableProvider implements vscode.HoverProvider, vscode.Definit
     };
 
     public get allowed_file_name_extensions (): string[] {
-
-        return Array.from(StringTableProvider.basic_allowed_file_name_extensions).concat(this.get_extra_allowed_file_name_extensions());
-
-
-
+        return this.basic_allowed_file_name_extensions.concat(this.get_extra_allowed_file_name_extensions());
     }
 
 
@@ -306,143 +300,85 @@ export class StringTableProvider implements vscode.HoverProvider, vscode.Definit
 
 
 
-    async provideCompletionItems (document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken, context: vscode.CompletionContext): Promise<vscode.CompletionItem[] | vscode.CompletionList<vscode.CompletionItem>> {
 
-        if (this.current_completion_list === undefined) {
-            this.current_completion_list = new vscode.CompletionList([], true);
-        };
-
-
-        if (context.triggerKind === vscode.CompletionTriggerKind.Invoke) {
-
-
-            this.current_completion_list = new vscode.CompletionList([], true);
-        };
-
-        if (token.isCancellationRequested) { return this.current_completion_list; }
-
-        this.current_completion_list.items = [];
-
-        const word_range = document.getWordRangeAtPosition(position);
-
-        if (!word_range) { return this.current_completion_list; };
-
-        const current_word = await this.get_word(document, word_range);
-
-        if (!current_word.toLowerCase().startsWith("str_")) { return this.current_completion_list; };
-
-
-        const possible_keys = await this.data.get_possible_entries(current_word);
-
-        for (const possible_key of possible_keys) {
-            let completion_item = new vscode.CompletionItem(possible_key, vscode.CompletionItemKind.Constant);
-            completion_item.filterText = possible_key.toLowerCase();
-            completion_item.sortText = possible_key.replace(/^str_/gmi, "").replace(/_/gmi, "").toLowerCase();
-
-            this.current_completion_list.items.push(completion_item);
-        };
-
-
-        return this.current_completion_list;
-
-    };
 
 
     async handle_problems (file: vscode.Uri, recurring: boolean = true, token?: vscode.CancellationToken): Promise<FoundKey[] | undefined> {
 
-        // const stringtable_clean_pattern = /(^"?\$?)(.*?)("?$)/g;
-        const locked_res = await this.problem_handling_lock.acquire(path.normalize(file.fsPath), async () => {
-            if ((!this._check_problems_handling_enabled())) {
-                this.diagnostic_collection.delete(file);
-                return;
-            };
-            // console.timeLog("handle_problems", vscode.workspace.asRelativePath(file));
-
-            // async function* get_all_matches (in_line: string, in_line_number: number) {
 
 
-            //     function clean_text (in_text: string): string {
-            //         return in_text.trim().replace(stringtable_clean_pattern, `$2`);
-            //     };
-
-
-
-            //     // const regex = ([".hpp", ".cpp", ".ext", ".inc"].includes(path.extname(file!.fsPath))) ? cfg_regex : sqf_regex;
-
-            //     for (const match of in_line.matchAll(STRINGTABLE_KEY_PATTERN)) {
-            //         if (match[0].endsWith("+")) { continue; };
-            //         yield new FoundKey(clean_text(match[0]), in_line_number, match.indices![0][0], match.indices![0][1], file.fsPath);
-            //         await utils.sleep(1);
-            //     };
-
-
-            // };
-
-            let inside_comment: boolean = false;
-
-
-            const keys_to_ignore = this._get_stringtable_keys_to_ignore();
-
-            const undefined_keys_severity = this.undefined_keys_problem_severity;
-
-
-
-
-            const diagnostic_items = new Array<vscode.Diagnostic>();
-
-            const all_undefined_keys: FoundKey[] = [];
-
-
-            for await (const found_key of find_all_stringtable_keys(file)) {
-
-                if (found_key.text.endsWith("_")) { continue; }
-                this.data.add_usage_location(found_key);
-                if (([".hpp", ".cpp", ".ext", ".inc"].includes(path.extname(file.fsPath))) && (found_key.text.startsWith("str_"))) {
-                    const not_upper_case_diagnostic_item = new vscode.Diagnostic(found_key.range, "stringtable keys in '.hpp', '.cpp', '.ext' or '.inc' files, need to start with upper case 'STR_' ", vscode.DiagnosticSeverity.Error);
-                    not_upper_case_diagnostic_item.source = "antistasi-development";
-                    diagnostic_items.push(not_upper_case_diagnostic_item);
-                };
-
-                if ((!keys_to_ignore.includes(found_key.text.toLowerCase())) && (!await this.data.get_entry(found_key.text, file.fsPath))) {
-                    const data_item = await this.data.get_data_item_for_file(file);
-                    const message_text = `'${found_key.text}' undefined` + ((data_item?.is_parseable === false) ? `\n('${vscode.workspace.asRelativePath(data_item.file_path)}' is not parseable)` : "");
-
-                    const diagnostic_item = new vscode.Diagnostic(found_key.range, message_text, undefined_keys_severity);
-                    diagnostic_item.source = "antistasi-development";
-                    if (data_item) {
-                        diagnostic_item.code = { value: `Stringtable(${data_item.name})`, target: data_item.uri };
-                    };
-                    diagnostic_items.push(diagnostic_item);
-                    all_undefined_keys.push(found_key);
-                }
-                await utils.sleep(1);
-            };
-
-
-
-
-            // };
+        if ((!this._check_problems_handling_enabled())) {
             this.diagnostic_collection.delete(file);
-            this.diagnostic_collection.set(file, diagnostic_items);
-
-            if ((recurring) && (vscode.workspace.textDocuments.map((item) => path.normalize(item.uri.fsPath)).includes(path.normalize(file.fsPath)))) {
-                let timeout = this.problems_handling_timeouts.get(file);
-
-                if (timeout) {
-                    clearTimeout(timeout);
-                    this.problems_handling_timeouts.delete(file);
-                };
-                timeout = setTimeout(async () => { this.handle_problems(file, true); }, (25 * 1000) + randomInt(0, 5000));
-                this.problems_handling_timeouts.set(file, timeout);
+            return;
+        };
 
 
+
+        const keys_to_ignore = this._get_stringtable_keys_to_ignore();
+
+        const undefined_keys_severity = this.undefined_keys_problem_severity;
+
+
+
+
+        const diagnostic_items = new Array<vscode.Diagnostic>();
+
+        const all_undefined_keys: FoundKey[] = [];
+
+        const all_found_keys: Array<FoundKey> = [];
+
+        for await (const found_key of find_all_stringtable_keys(file)) {
+            this.data.add_usage_location(found_key);
+            if (found_key.text.endsWith("_")) { continue; }
+
+
+            if (([".hpp", ".cpp", ".ext", ".inc"].includes(path.extname(file.fsPath))) && (found_key.text.startsWith("str_"))) {
+                const not_upper_case_diagnostic_item = new vscode.Diagnostic(found_key.range, "stringtable keys in '.hpp', '.cpp', '.ext' or '.inc' files, need to start with upper case 'STR_' ", vscode.DiagnosticSeverity.Error);
+                not_upper_case_diagnostic_item.source = "antistasi-development";
+                diagnostic_items.push(not_upper_case_diagnostic_item);
             };
 
-            await utils.sleep(25);
-            return all_undefined_keys;
-        }, { maxPending: 2 });
+            if ((!keys_to_ignore.includes(found_key.text.toLowerCase())) && (!await this.data.get_entry(found_key.text, file.fsPath))) {
+                const data_item = await this.data.get_data_item_for_file(file);
+                const message_text = `'${found_key.text}' undefined` + ((data_item?.is_parseable === false) ? `\n('${vscode.workspace.asRelativePath(data_item.file_path)}' is not parseable)` : "");
 
-        return locked_res;
+                const diagnostic_item = new vscode.Diagnostic(found_key.range, message_text, undefined_keys_severity);
+                diagnostic_item.source = "antistasi-development";
+                if (data_item) {
+                    diagnostic_item.code = { value: `Stringtable(${data_item.name})`, target: data_item.uri };
+                };
+                diagnostic_items.push(diagnostic_item);
+                all_undefined_keys.push(found_key);
+            }
+
+
+        };
+
+
+
+
+
+
+        // };
+        this.diagnostic_collection.delete(file);
+        this.diagnostic_collection.set(file, diagnostic_items);
+
+        if ((recurring) && (vscode.workspace.textDocuments.map((item) => path.normalize(item.uri.fsPath)).includes(path.normalize(file.fsPath)))) {
+            let timeout = this.problems_handling_timeouts.get(file);
+
+            if (timeout) {
+                clearTimeout(timeout);
+                this.problems_handling_timeouts.delete(file);
+            };
+            timeout = setTimeout(async () => { this.handle_problems(file, true); }, (25 * 1000) + randomInt(0, 5000));
+            this.problems_handling_timeouts.set(file, timeout);
+
+
+        };
+
+        await utils.sleep(5);
+        return all_undefined_keys;
+
     }
 
 
@@ -504,118 +440,99 @@ export class StringTableProvider implements vscode.HoverProvider, vscode.Definit
 
 
     async scan_for_all_undefined_keys (show_summary_afterwards: boolean, slow_down?: number, hide_progress_bar?: boolean, ...args: any[]) {
-        if (this.scan_for_all_undefined_keys_command_is_running) { vscode.window.showInformationMessage(`command is already running!`); return; }
+        if (this.scan_for_all_undefined_keys_command_is_running) {
+            vscode.window.showInformationMessage(`command is already running!`); return;
+        }
+
+        const start_time = Date.now();
 
         this.scan_for_all_undefined_keys_command_is_running = true;
         try {
-            if (((Date.now() / 1000) - this.data.last_reloaded_at) >= (60 * 5)) {
-                console.log(`reloading Data`);
-                await this.data.load_all();
-            }
+
+
 
             await utils.sleep(0.1 * 1000);
-            const all_file_uris = (await vscode.workspace.findFiles(`A3A/**/*.{${this.allowed_file_name_extensions.map((v) => v.replace(/^\./gm, "")).join(",")}}`))
-                .sort((a, b) => a.fsPath.toLowerCase().localeCompare(b.fsPath.toLowerCase())).reverse();
-            // .filter((value) => fs.statSync(value.fsPath).size <= (250 * 1000));
-            // .sort((a, b) => fs.statSync(b.fsPath).size - fs.statSync(a.fsPath).size);
-            // .sort(() => randomInt(0, 1) - 0.5);
+            const exclude_pattern = utils.convert_to_case_insensitive_glob_pattern(`**/navgrid`);
+            const all_file_uris = (await vscode.workspace.findFiles(`**/*.{${this.allowed_file_name_extensions.map((v) => v.replace(/^\./gm, "")).join(",")}}`, `${exclude_pattern}.sqf`))
+                .sort((a, b) => { return utils.sort_file_paths(a.fsPath, b.fsPath); });
 
+
+            const all_hashes = await Promise.all(all_file_uris.map(async (item_uri) => { return [item_uri, await utils.file_hash(item_uri.fsPath, { algorithm: "md5" })]; }));
+
+            const max_file_amount = all_file_uris.length;
             let file_no = 0;
 
             let was_cancelled: boolean = false;
 
             const _all_undefined_keys: FoundKey[] = [];
             const tasks: Promise<any>[] = [];
-            const start_time = Date.now();
 
-            if (hide_progress_bar) {
-                for (const uri of all_file_uris) {
-                    tasks.push(
-                        this.handle_problems(uri, false)
-                            .then((_undefined_keys) => {
-
-                                if ((_undefined_keys) && (show_summary_afterwards)) {
-                                    _all_undefined_keys.push(..._undefined_keys);
-                                }
-
-
-                            }));
-                    await utils.sleep(0);
-
-
+            const do_handle = async (_uri: vscode.Uri, _progress: vscode.Progress<{ message?: string | undefined; increment?: number | undefined; }>, _token: vscode.CancellationToken) => {
+                if (_token.isCancellationRequested) {
+                    return;
                 }
-                await Promise.all(tasks);
-            } else {
-
-                await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "finished scanning", cancellable: true },
-                    async (progress, token) => {
 
 
+                const result_keys = await this.handle_problems(_uri, false, _token);
+                if ((result_keys) && (show_summary_afterwards)) {
+                    _all_undefined_keys.push(...result_keys);
+                }
+                file_no += 1;
+                const path_text = vscode.workspace.asRelativePath(_uri, false);
+                _progress.report(
+                    (hide_progress_bar) ? { increment: 100 / max_file_amount, message: `${file_no}/${max_file_amount}: ${path_text}` } : { increment: 100 / max_file_amount, message: `\n${file_no}/${max_file_amount}\n${path_text}` }
 
-                        progress.report({ message: "searching for files..." });
-                        await utils.sleep(0.5 * 1000);
-                        await utils.sleep(0.5 * 1000);
-                        await utils.sleep(0.5 * 1000);
-                        await utils.sleep(0.5 * 1000);
+                );
 
-                        for (const uri of all_file_uris) {
-                            if (token.isCancellationRequested) { break; }
-                            tasks.push(
-                                this.handle_problems(uri, false, token)
-                                    .then((_undefined_keys) => {
+            };
 
-                                        if ((_undefined_keys) && (show_summary_afterwards)) {
-                                            _all_undefined_keys.push(..._undefined_keys);
-                                        }
-                                        file_no += 1;
+            await vscode.window.withProgress<FoundKey[][]>({ location: (hide_progress_bar) ? vscode.ProgressLocation.Window : vscode.ProgressLocation.Notification, title: "", cancellable: (hide_progress_bar) ? false : true },
+                async (progress, token) => {
 
-                                        progress.report(
-                                            { increment: 100 / all_file_uris.length, message: `\n${file_no}/${all_file_uris.length}\n${vscode.workspace.asRelativePath(uri, false)}` }
 
-                                        );
-
-                                    },
-                                        (reason) => console.log(`rejected reason: ${reason}`))
-
-                            );
-
-                            // if (tasks.length >= 5) {
-                            //     await utils.sleep(10);
-                            //     await Promise.all(tasks.splice(0, tasks.length));
-                            //     await utils.sleep(10);
-
-                            // }
-                            // if ((slow_down)) {
-                            //     await utils.sleep(slow_down);
-                            // }
-                            // await utils.sleep(slow_down || 0);
-                            await utils.sleep(0);
+                    progress.report({ message: "searching for files..." });
 
 
 
-                        };
-                        await utils.sleep(0.5 * 1000);
+                    for (const uri of all_file_uris) {
 
 
-                        if (token.isCancellationRequested) {
-                            was_cancelled = true;
-                        };
+                        if (token.isCancellationRequested) { break; }
+                        tasks.push(do_handle(uri, progress, token));
+                        // await do_handle(uri, progress, token);
 
-                        await utils.sleep(0.5 * 1000);
 
-                        const result = await Promise.all(tasks);
-                        await utils.sleep(1.0 * 1000);
-                        return result;
 
-                    });
-            }
+                        await utils.sleep(randomInt(0, 1));
+
+
+
+
+
+                    };
+                    // await utils.sleep(0.25 * 1000);
+
+
+                    if (token.isCancellationRequested) {
+                        was_cancelled = true;
+                    };
+
+
+                    const result = await Promise.all(tasks);
+                    return result;
+
+                });
+
+
+
 
             const end_time = Date.now();
 
             const duration = (end_time - start_time) / 1000;
+            const duration_per_file = utils.better_round(duration / max_file_amount, 3);
 
             console.log(`scan_for_all_undefined_keys took ${duration}s`);
-            vscode.window.showInformationMessage(`scan_for_all_undefined_keys took ${duration}s`);
+            console.log(`per file: ${duration_per_file}s`);
             if ((!was_cancelled) && (show_summary_afterwards)) {
                 await create_undefined_stringtable_keys_result_web_view(_all_undefined_keys);
                 await utils.sleep(2 * 100);
@@ -648,12 +565,12 @@ export class StringTableProvider implements vscode.HoverProvider, vscode.Definit
 
         disposables.push(vscode.workspace.onDidCloseTextDocument(this.handle_on_text_document_closed));
         disposables.push(vscode.commands.registerCommand('antistasi.scan-for-all-undefined-stringtable-keys', (...args) => this.scan_for_all_undefined_keys(true), this));
-        disposables.push(vscode.commands.registerCommand('antistasi.only-scan-for-all-undefined-stringtable-keys', (...args) => this.scan_for_all_undefined_keys(false), this));
+        disposables.push(vscode.commands.registerCommand('antistasi.only-scan-for-all-undefined-stringtable-keys', (...args) => this.scan_for_all_undefined_keys(false, undefined, true), this));
 
         await vscode.commands.executeCommand('setContext', "antistasiDevelopment.commandEnabled.scan-for-all-undefined-stringtable-keys", true);
 
         disposables.push(vscode.languages.registerCodeActionsProvider(this.file_selectors, this, this));
-        disposables.push(vscode.languages.registerCompletionItemProvider(this.file_selectors, this));
+
 
         await this.tree_view.register(context);
 
