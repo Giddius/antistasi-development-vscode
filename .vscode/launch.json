@@ -29,7 +29,7 @@
 			"request": "launch",
 			"args": [
 				"--extensionDevelopmentPath=${workspaceFolder}",
-				"--disable-extensions",
+				"--disable-extensions"
 			],
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
@@ -46,9 +46,10 @@
 				"${workspaceFolder}/**",
 				"!**/node_modules/**"
 			],
+			"pauseForSourceMap": true,
 			"showAsyncStacks": true,
 			"sourceMaps": true,
-			"trace": false,
+			"trace": false
 		},
 		{
 			"name": "Extension Tests",

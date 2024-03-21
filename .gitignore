@@ -138,3 +138,5 @@ dmypy.json
 
 
 /builtin_arma_stringtable_data.db
+/.vscode/extensions.json
+/.vscode/settings.json

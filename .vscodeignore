@@ -8,8 +8,13 @@ vsc-extension-quickstart.md
 **/.eslintrc.json
 **/*.map
 **/*.ts
-.npmrc
 
+
+
+**/*.env
+dist/**
+**/.npmrc
+**/.prettierrc
 temp/**
 
 tools/**
