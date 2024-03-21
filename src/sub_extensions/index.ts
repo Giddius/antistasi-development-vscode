@@ -5,6 +5,8 @@ import * as stringtable_data from "./stringtable_data";
 import { SubExtension } from "typings/general";
 import * as utils from "#utilities";
 
+
+
 // endregion[Imports]
 
 function _fill_sub_extension_default_values (sub_extension: any): SubExtension {
