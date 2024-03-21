@@ -61,7 +61,7 @@ export class ConvertToStringtableKeyCommand extends AbstractCommand {
                 found.push([m.index, regex.lastIndex]);
             };
             if (found.length <= 0) { return; }
-            for (let indexes of found) {
+            for (const indexes of found) {
                 if ((indexes[0] <= selection.start.character) && (indexes[1] >= selection.end.character)) {
                     selection = new vscode.Selection(selection.start.line, indexes[0], selection.end.line, indexes[1]);
                     break;

@@ -54,7 +54,7 @@ export function convert_to_case_insensitive_glob_pattern (in_pattern: string): s
     const non_letters: string = "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~" + "0123456789";
     const ascii_letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
-    for (let char of in_pattern) {
+    for (const char of in_pattern) {
         if (non_letters.includes(char)) {
             new_pattern_chars.push(char);
         } else {
@@ -195,9 +195,9 @@ export async function* iter_file_lines (in_file: string, include_newline: boolea
 
     const stream = fs.createReadStream(in_file, "utf-8");
 
-    const reader = rd.createInterface({ input: stream });
-
+    const reader = rd.createInterface({ input: stream, historySize: 0, crlfDelay: Infinity });
     try {
+
         let line_number = 0;
         if (include_newline) {
             for await (const line of reader) {
@@ -214,6 +214,7 @@ export async function* iter_file_lines (in_file: string, include_newline: boolea
         reader.close();
         stream.close();
     }
+    return;
 }
 
 export async function* iter_text_document_lines (in_document: vscode.TextDocument, include_newline: boolean = false): AsyncGenerator<TextLineLike> {
@@ -221,6 +222,8 @@ export async function* iter_text_document_lines (in_document: vscode.TextDocumen
         const vscode_text_line = in_document.lineAt(line_number);
         yield new TextLineLike(vscode_text_line.text, vscode_text_line.lineNumber);
     }
+
+    return;
 }
 
 
@@ -228,17 +231,20 @@ export async function* iter_text_document_lines (in_document: vscode.TextDocumen
 export async function* iter_file_lines_read_at_once (in_file: string, include_newline: boolean = false): AsyncGenerator<TextLineLike> {
     const split_regex = include_newline ? /^/gm : /\r?\n/gm;
     let line_number = 0;
-    for (const line of (await fs.readFile(in_file, "utf-8")).split(split_regex)) {
+    for (const line of (fs.readFileSync(in_file, "utf-8")).split(split_regex)) {
         yield new TextLineLike(!include_newline ? line : line + "\n", line_number);
         line_number++;
     }
+
+
+    return;
 }
 
 export interface LineIterOptions {
     max_single_read_size?: number;
 }
 
-const DEFAULT_MAX_SINGLE_READ_SIZE: number = human_to_bytes(2.5, "mB");
+const DEFAULT_MAX_SINGLE_READ_SIZE: number = human_to_bytes(1.5, "mB");
 
 
 
@@ -248,6 +254,8 @@ export async function* iter_file_lines_best_algo (in_file: string, include_newli
     for await (const line of generator_function(in_file, include_newline)) {
         yield line;
     }
+
+    return;
 }
 
 export const median = (arr: number[]): number | undefined => {
@@ -297,10 +305,14 @@ export async function file_hash (file_path: string, options: FileHashOptions = {
     const result = await new Promise((resolve, reject) => {
         const hash = crypto.createHash(options.algorithm!);
         const stream = fs.createReadStream(file_path);
+        try {
+            stream.on('data', (data) => hash.update(data));
+            stream.on('end', () => resolve(hash.digest('hex')));
+            stream.on('error', (error) => reject(error));
+        } finally {
+            stream.close();
+        }
 
-        stream.on('data', (data) => hash.update(data));
-        stream.on('end', () => resolve(hash.digest('hex')));
-        stream.on('error', (error) => reject(error));
     });
 
 
