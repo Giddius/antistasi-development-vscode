@@ -18,7 +18,9 @@ const DB_FILE = path.resolve(__dirname, "builtin_arma_stringtable_data.db");
 
 const DB_SQL_FILE = path.resolve(__dirname, "create_db.sql");
 
-const FILES_TO_IGNORE = ["**/snippets/sqf.json"];
+// const FILES_TO_IGNORE = ["**/snippets/sqf.json"];
+const FILES_TO_IGNORE = [];
+
 
 // const CWD = path.resolve(process.argv.at(2));
 const CWD = __dirname;
