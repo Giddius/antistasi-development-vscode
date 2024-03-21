@@ -8,9 +8,10 @@ import { StringTableDataStorage, StringtableData, StringtableFileData, Stringtab
 import { randomInt, randomUUID, getHashes } from "crypto";
 import * as fs from "fs-extra";
 
+import { Mutex, MutexInterface, Semaphore, SemaphoreInterface, withTimeout } from 'async-mutex';
 
 import { StringtableDataLoadedEvent } from "typings/general";
-import AsyncLock from "async-lock";
+
 
 
 import { create_undefined_stringtable_keys_result_web_view } from "../../web_views/undefined_stringtable_keys_view";
@@ -186,7 +187,7 @@ export class StringTableProvider implements vscode.HoverProvider, vscode.Definit
 
             let files = await vscode.workspace.findFiles(pattern);
 
-            for (let file of files) {
+            for (const file of files) {
                 if ((open_file_paths.includes(path.normalize(file.fsPath)))) {
                     tasks.push(this.handle_problems(file));
                     await utils.sleep(25);
@@ -398,8 +399,8 @@ export class StringTableProvider implements vscode.HoverProvider, vscode.Definit
 
 
         const open_file_paths_map = new Map(open_documents.map((value) => [path.normalize(value.uri.fsPath), value]));
-        for (let tab_group of vscode.window.tabGroups.all) {
-            for (let tab of tab_group.tabs) {
+        for (const tab_group of vscode.window.tabGroups.all) {
+            for (const tab of tab_group.tabs) {
                 if (!(tab.input instanceof vscode.TabInputText)) { continue; }
                 let uri = tab.input.uri;
 
@@ -457,7 +458,7 @@ export class StringTableProvider implements vscode.HoverProvider, vscode.Definit
                 .sort((a, b) => { return utils.sort_file_paths(a.fsPath, b.fsPath); });
 
 
-            const all_hashes = await Promise.all(all_file_uris.map(async (item_uri) => { return [item_uri, await utils.file_hash(item_uri.fsPath, { algorithm: "md5" })]; }));
+            // const all_hashes = await Promise.all(all_file_uris.map(async (item_uri) => { return [item_uri, await utils.file_hash(item_uri.fsPath, { algorithm: "md5" })]; }));
 
             const max_file_amount = all_file_uris.length;
             let file_no = 0;
@@ -467,26 +468,30 @@ export class StringTableProvider implements vscode.HoverProvider, vscode.Definit
             const _all_undefined_keys: FoundKey[] = [];
             const tasks: Promise<any>[] = [];
 
+            const rate_limiting_semaphore = new Semaphore(5);
+
             const do_handle = async (_uri: vscode.Uri, _progress: vscode.Progress<{ message?: string | undefined; increment?: number | undefined; }>, _token: vscode.CancellationToken) => {
-                if (_token.isCancellationRequested) {
-                    return;
-                }
+                return await rate_limiting_semaphore.runExclusive(async () => {
+                    if (_token.isCancellationRequested) {
+                        return;
+                    }
 
 
-                const result_keys = await this.handle_problems(_uri, false, _token);
-                if ((result_keys) && (show_summary_afterwards)) {
-                    _all_undefined_keys.push(...result_keys);
-                }
-                file_no += 1;
-                const path_text = vscode.workspace.asRelativePath(_uri, false);
-                _progress.report(
-                    (hide_progress_bar) ? { increment: 100 / max_file_amount, message: `${file_no}/${max_file_amount}: ${path_text}` } : { increment: 100 / max_file_amount, message: `\n${file_no}/${max_file_amount}\n${path_text}` }
+                    const result_keys = await this.handle_problems(_uri, false, _token);
+                    if ((result_keys) && (show_summary_afterwards)) {
+                        _all_undefined_keys.push(...result_keys);
+                    }
+                    file_no += 1;
+                    const path_text = vscode.workspace.asRelativePath(_uri, false);
+                    _progress.report(
+                        (hide_progress_bar) ? { increment: 100 / max_file_amount, message: `${file_no}/${max_file_amount}: ${path_text}` } : { increment: 100 / max_file_amount, message: `\n${file_no}/${max_file_amount}\n${path_text}` }
 
-                );
-
+                    );
+                });
             };
 
-            await vscode.window.withProgress<FoundKey[][]>({ location: (hide_progress_bar) ? vscode.ProgressLocation.Window : vscode.ProgressLocation.Notification, title: "", cancellable: (hide_progress_bar) ? false : true },
+
+            const _ = await vscode.window.withProgress<FoundKey[][]>({ location: (hide_progress_bar) ? vscode.ProgressLocation.Window : vscode.ProgressLocation.Notification, title: "", cancellable: (hide_progress_bar) ? false : true },
                 async (progress, token) => {
 
 
@@ -518,8 +523,8 @@ export class StringTableProvider implements vscode.HoverProvider, vscode.Definit
                     };
 
 
-                    const result = await Promise.all(tasks);
-                    return result;
+                    return await Promise.all(tasks);
+
 
                 });
 
