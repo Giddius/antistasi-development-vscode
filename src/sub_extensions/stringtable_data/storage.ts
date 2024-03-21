@@ -13,10 +13,12 @@ import * as sqlite from 'sqlite';
 import AvailableData from "./data";
 import { FreeCommand, AbstractCommand } from "#bases";
 import { Mutex, MutexInterface, Semaphore, SemaphoreInterface, withTimeout } from 'async-mutex';
+import { listenerCount } from "process";
 
 // endregion[Imports]
 
 
+const DB_DRIVER = sqlite3.Database;
 
 
 const DB_BUILD_SQL_SCRIPT_PATH = AvailableData.get_resource("builtin_arma_stringtable_data.sql")!;
@@ -114,15 +116,27 @@ export class StringtableEntry implements StringtableEntryInterface {
 
 
     async add_usage_location (found_key: FoundKey): Promise<boolean> {
-        for (const existing_found_key of this.usage_locations) {
-            if ((existing_found_key.relative_path === found_key.relative_path)
-                && (existing_found_key.start_line === found_key.start_line)
-                && (existing_found_key.start_char === found_key.start_char)) {
-                return false;
-            }
+        const extists: boolean = this.usage_locations.some((item) => {
+            return ((item.file === found_key.file)
+                && (item.start_line === found_key.start_line)
+                && (item.start_char === found_key.start_char)
+                && (item.end_line === found_key.end_line)
+                && (item.end_char === found_key.end_char));
+        });
+        // for (const existing_found_key of this.usage_locations) {
+        //     if ((existing_found_key.file === found_key.file)
+        //         && (existing_found_key.start_line === found_key.start_line)
+        //         && (existing_found_key.start_char === found_key.start_char)) {
+        //         return false;
+        //     }
+        // }
+
+        if (extists === true) {
+            return false;
+        } else {
+            this.usage_locations.push(found_key);
+            return true;
         }
-        this.usage_locations.push(found_key);
-        return true;
     };
 
 
@@ -348,6 +362,7 @@ export class StringtableData {
 
     public has_entry (key: string): boolean {
         const normalized_key: string = this._normalize_key(key);
+
         return this.data.has(normalized_key);
     }
 
@@ -359,9 +374,9 @@ export class StringtableData {
 
     public clear (): void {
         // this.data = new Map<string, StringtableEntry>();
-        for (const entry of this.data.values()) {
-            entry.usage_locations.splice(0, entry.usage_locations.length);
-        }
+        // for (const entry of this.data.values()) {
+        //     entry.usage_locations.splice(0, entry.usage_locations.length);
+        // }
         this.data.clear();
 
 
@@ -372,9 +387,9 @@ export class StringtableData {
         return this;
     };
 
-    public async dispose (): Promise<void> {
+    dispose = async (): Promise<void> => {
 
-    }
+    };
 
     get [Symbol.toStringTag] () {
 
@@ -396,13 +411,13 @@ export interface EntryQueryResult {
 
 export class StringtableBuiltinData extends StringtableData {
     db_path: string;
-    protected db_connection?: sqlite.Database<sqlite3.Database, sqlite3.Statement>;
-    protected db_connection_lock: Mutex = new Mutex();
+    protected db_shutdown_lock: Mutex;
 
 
 
     constructor (db_path: string) {
         super();
+        this.db_shutdown_lock = new Mutex();
         this.db_path = path.normalize(db_path);
 
 
@@ -426,9 +441,7 @@ export class StringtableBuiltinData extends StringtableData {
 
     public async reload (): Promise<StringtableData> {
 
-        await this.close_db_connection();
 
-        this.db_connection = await this.get_db_connection();
 
         return this;
 
@@ -436,131 +449,94 @@ export class StringtableBuiltinData extends StringtableData {
 
     async create_db () {
         console.log(`creating DB because this.db_exists: ${this.db_exists}`);
-        try {
 
-            await fs.ensureDir(path.dirname(this.db_path));
 
-        } catch (e) {
-            console.error(`dir creation error ${e}`);
-            return;
-        }
+        await fs.ensureDir(path.dirname(this.db_path));
+
+
         if (this.db_exists) {
             await this.delete_db();
         }
-        const conn = await sqlite.open({ filename: this.db_path, driver: sqlite3.Database, mode: sqlite3.OPEN_CREATE | sqlite3.OPEN_READWRITE | sqlite3.OPEN_FULLMUTEX });
-        try {
-
-            await conn.exec(await DB_BUILD_SQL_SCRIPT_PATH.read_text());
-            utils.sleep(100);
-        } catch (e) {
-            console.error(`db creation error ${e}`);
+        const connection = await sqlite.open({ filename: this.db_path, driver: sqlite3.Database, mode: sqlite3.OPEN_CREATE | sqlite3.OPEN_READWRITE | sqlite3.OPEN_FULLMUTEX });
 
 
-        } finally {
-            await conn.close();
-        }
+        await connection.exec(await DB_BUILD_SQL_SCRIPT_PATH.read_text());
+        await connection.close();
+
+
     };
 
-    protected async get_db_connection () {
+    protected get_db_connection = async () => {
+
         if (!this.db_exists) {
             await this.create_db();
         }
-        const connection = await sqlite.open({ filename: this.db_path, driver: sqlite3.Database, mode: sqlite3.OPEN_READONLY | sqlite3.OPEN_FULLMUTEX });
-        connection.getDatabaseInstance().configure("busyTimeout", 10 * 1000);
-        console.log(`connection.getDatabaseInstance().getMaxListeners(): ${connection.getDatabaseInstance().getMaxListeners()}`);
-        connection.getDatabaseInstance().parallelize();
+
+        const connection = await sqlite.open({ filename: this.db_path, driver: DB_DRIVER, mode: sqlite3.OPEN_READONLY | sqlite3.OPEN_FULLMUTEX });
+
+
         return connection;
-    }
 
-    protected async close_db_connection () {
 
-        await this.db_connection_lock.runExclusive(async () => {
+    };
 
-            if (this.db_connection) {
 
-                await this.db_connection.close();
-            }
-
-            this.db_connection = undefined;
-        });
-    }
 
     protected async query_entry (key_name: string) {
 
-        await this.db_connection_lock.runExclusive(async () => {
-
-            if (!this.db_connection) {
-                this.db_connection = await this.get_db_connection();
-            }
-
-        });
 
         const normalized_key = this._normalize_key(key_name);
 
         const hashed_key: string = crypto.createHash("sha256").update(normalized_key, "utf8").digest("hex");
 
 
+        const db_connection = await this.db_shutdown_lock.runExclusive(this.get_db_connection, 1);
 
-        const res = await this.db_connection!.get(ENTRY_QUERY, hashed_key);
+        const query_result = await db_connection.get(ENTRY_QUERY, hashed_key);
 
+        await db_connection.close();
 
-        const exists = res.does_exists as boolean;
-
-        if (!exists) {
+        if (!query_result.does_exists as boolean) {
 
             return;
         };
 
-        const result = new BuiltinStringtableEntry(key_name);
 
 
-
-        return result;
-
+        return new BuiltinStringtableEntry(key_name);
 
 
     };
 
 
     public clear (): void {
-        this.close_db_connection();
-
 
 
     }
 
-    public async get_entry (key: string): Promise<BuiltinStringtableEntry | undefined> {
-        return await this.query_entry(key);
+    public async get_entry (key: string) {
+        return await this.query_entry(key);;
 
     };
 
     public has_entry (key: string): boolean {
-        const res = this.query_entry(key);
-        if (!res) { return false; }
-        return true;
+
+        return false;
     }
 
     public async delete_db (): Promise<void> {
 
 
-
         console.log(`pre-delete DB, status -> this.db_exists: ${this.db_exists}`);
 
-        const tasks = [
-            this.close_db_connection(),
-            fs.remove(this.db_path).then(() => { console.log(`deleted DB, result -> this.db_exists: ${this.db_exists}`); })
-        ];
+        return await fs.remove(this.db_path).then(() => { console.log(`deleted DB, result -> this.db_exists: ${this.db_exists}`); });
 
-
-
-
-        await Promise.all(tasks);
 
 
     };
 
 
-    async dispose (): Promise<void> {
+    dispose = async (): Promise<void> => {
         return await this.delete_db();
 
     };
@@ -576,19 +552,28 @@ export class StringtableFileData extends StringtableData {
     readonly uri: vscode.Uri;
     public all_container_names: Array<string>;
     public is_parseable: boolean;
+    protected data_lock: Mutex;
+
 
 
 
 
     constructor (file: vscode.Uri | string) {
         super();
+        this.data_lock = new Mutex();
+
         this.uri = file instanceof vscode.Uri ? file : vscode.Uri.file(file);
         this.file_path = path.normalize(this.uri.fsPath);
         this.all_container_names = [];
         this.is_parseable = true;
     };
 
+    public async get_entry (key: string): Promise<StringtableEntryInterface | undefined> {
+        const normalized_key: string = this._normalize_key(key);
+        await this.data_lock.waitForUnlock();
+        return this.data.get(normalized_key);
 
+    };
 
     public get name (): string {
         if (this._name === undefined) {
@@ -599,6 +584,7 @@ export class StringtableFileData extends StringtableData {
     };
 
     public async get_all_key_names (): Promise<string[]> {
+        await this.data_lock.waitForUnlock();
 
         return Array.from(this.data.values()).map((value) => value.exact_key_name);
 
@@ -608,6 +594,7 @@ export class StringtableFileData extends StringtableData {
     };
 
     public async get_all_items (): Promise<StringtableEntry[]> {
+        await this.data_lock.waitForUnlock();
 
         return Array.from(this.data.values());
     }
@@ -650,32 +637,37 @@ export class StringtableFileData extends StringtableData {
     };
 
     public async reload (): Promise<StringtableFileData> {
+        return await this.data_lock.runExclusive(async () => {
+
+            this.clear();
+            this.all_container_names = [];
+            this.is_parseable = true;
+            try {
+
+                const result = await parse_xml_file_async(this.uri);
+                for (const entry of result.found_keys) {
 
 
-        this.clear();
-        this.all_container_names = [];
-        this.is_parseable = true;
-        try {
 
-            const result = await parse_xml_file_async(this.uri);
-            for (let entry of result.found_keys) {
+                    this.add_entry(entry);
 
 
+                };
+                this.all_container_names = Array.from(result.found_container_names);
 
-                this.add_entry(entry);
+            } catch (error) {
 
-
+                vscode.window.showErrorMessage(`Error occured while processing Stringtable file '${this.file_path}'! ---------------> ${error}`);
+                console.error(`Error occured while processing Stringtable file '${this.file_path}'! ---------------> ${error}`);
+                this.is_parseable = false;
             };
-            this.all_container_names = Array.from(result.found_container_names);
+            return this;
 
-        } catch (error) {
+        }, 10);
+    };
 
-            vscode.window.showErrorMessage(`Error occured while processing Stringtable file '${this.file_path}'! ---------------> ${error}`);
-            console.error(`Error occured while processing Stringtable file '${this.file_path}'! ---------------> ${error}`);
-            this.is_parseable = false;
-        };
-        console.log(`${this[Symbol.toStringTag]} this.data.size: ${this.data.size}`);
-        return this;
+    dispose = async (): Promise<void> => {
+        await this.data_lock.runExclusive(async () => { return this.clear(); }, 10);
     };
     get [Symbol.toStringTag] () {
 
@@ -801,7 +793,7 @@ export class StringTableDataStorage {
 
 
             const _dynamic_data_map: ReadonlyMap<string, StringtableFileData> = new Map<string, StringtableFileData>(this.dynamic_data.map((item) => [item.uri.path, item]));
-            for (let file of files) {
+            for (const file of files) {
                 let _existing_stringtable_data = _dynamic_data_map.get(file.path);
 
                 if (_existing_stringtable_data === undefined) {
@@ -843,17 +835,7 @@ export class StringTableDataStorage {
 
     public async load_all (): Promise<void> {
 
-        let amount_locations: number = 0;
 
-        for (const dyn_data_item of this.dynamic_data) {
-            for (const entry of await dyn_data_item.get_all_items()) {
-                amount_locations += entry.usage_locations.length;
-            }
-        }
-
-
-        console.log(`amount all usage_locations: ${amount_locations}`);
-        console.log(`this.undefined_cache.size: ${this.undefined_cache.size}`);
         await this.clear();
 
         this.dynamic_data = new Array<StringtableFileData>().concat(await this.load_data(await this.find_all_stringtable_files(), true));
@@ -863,8 +845,9 @@ export class StringTableDataStorage {
         this._onAllDataLoadedEmitter.fire();
         this.last_reloaded_at = Date.now() / 1000;
 
-        console.log(`this.dynamic_data.length: ${this.dynamic_data.length}`);
-        console.log(`this.static_data.length: ${this.static_data.length}`);
+
+
+
     };
 
     public async get_data_item_for_file (file: vscode.Uri): Promise<StringtableFileData | undefined> {
@@ -1000,19 +983,20 @@ export class StringTableDataStorage {
 
     public async register (context: vscode.ExtensionContext): Promise<vscode.Disposable[]> {
 
+
         this.context = context;
 
+        const disposables: vscode.Disposable[] = [];
 
         if (this.static_data.length <= 0) {
             this.static_data = await this.load_static_data();
             for (const static_data of this.static_data) {
-                this.context!.subscriptions.unshift(static_data);
+                context.subscriptions.unshift(static_data);
 
             }
         }
 
 
-        const disposables: vscode.Disposable[] = [];
 
 
 
@@ -1035,7 +1019,7 @@ export class StringTableDataStorage {
 
         disposables.push(stringtable_watcher);
 
-        this.reload_timer = setInterval(() => this.load_all(), 5 * 60 * 1000);
+        // this.reload_timer = setInterval(() => this.load_all(), 5 * 60 * 1000);
 
 
 
@@ -1053,7 +1037,7 @@ export class StringTableDataStorage {
         }
 
         await this.clear();
-        await utils.sleep(1000);
+
     };
 
 

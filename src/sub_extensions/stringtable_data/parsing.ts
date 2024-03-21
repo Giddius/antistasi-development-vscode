@@ -42,10 +42,12 @@ export class FoundKey {
 
 
     public get uri (): vscode.Uri {
-        if (!this._uri) {
-            this._uri = vscode.Uri.file(this.file);
-        }
-        return this._uri;
+        // if (!this._uri) {
+        //     this._uri = vscode.Uri.file(this.file);
+        // }
+        // return this._uri;
+        return vscode.Uri.file(this.file);
+
     }
 
 
@@ -57,11 +59,12 @@ export class FoundKey {
     }
 
     public get range (): vscode.Range {
-        if (!this._range) {
-            this._range = new vscode.Range(this.line_number, this.indexes[0], this.line_number, this.indexes[1]);
+        // if (!this._range) {
+        // this._range = new vscode.Range(this.line_number, this.indexes[0], this.line_number, this.indexes[1]);
+        return new vscode.Range(this.line_number, this.indexes[0], this.line_number, this.indexes[1]);
 
-        }
-        return this._range;
+        // }
+        // return this._range;
     }
 
     public get start_line (): number {
@@ -111,12 +114,24 @@ export class FoundKey {
 // export const STRINGTABLE_KEY_PATTERN = /"?\$?STR_[\w\d\_\-]+"? *\+?/gid;
 
 // export const STRINGTABLE_KEY_PATTERN = /"?\$?STR_[\w\d\_\-]+"?/gid;
-export const STRINGTABLE_KEY_PATTERN = /\$?STR_\w+\b/gid;
+
+const STRINGTABLE_PARSE_REGEXES = {
+    STRINGTABLE_KEY_PATTERN: new RegExp(/\$?STR_\w+\b/gid),
+
+    STRINGTABLE_CLEAN_PATTERN: new RegExp(/^\$/g),
+
+    BLOCK_COMMENT_BEGIN_REGEX: new RegExp(/\/\*/),
+    BLOCK_COMMENT_END_REGEX: new RegExp(/\*\//),
+
+    LINE_COMMENT_BEGIN_REGEX: new RegExp(/\/\//),
+} as const;
+
+export const STRINGTABLE_KEY_PATTERN: RegExp = new RegExp(/\$?STR_\w+\b/gid);
 
 
 
 // const STRINGTABLE_CLEAN_PATTERN = /(^"?\$?)(.*?)("?$)/g;
-const STRINGTABLE_CLEAN_PATTERN = /^\$/g;
+const STRINGTABLE_CLEAN_PATTERN: RegExp = new RegExp(/^\$/g);
 
 
 async function* _get_all_matches (in_file: vscode.Uri, in_line: string, in_line_number: number) {
@@ -124,13 +139,13 @@ async function* _get_all_matches (in_file: vscode.Uri, in_line: string, in_line_
 
 
     function clean_text (in_text: string): string {
-        return in_text.trim().replace(STRINGTABLE_CLEAN_PATTERN, ``);
+        return in_text.trim().replace(STRINGTABLE_PARSE_REGEXES.STRINGTABLE_CLEAN_PATTERN, ``);
     };
 
 
 
 
-    for (const match of in_line.matchAll(STRINGTABLE_KEY_PATTERN)) {
+    for (const match of in_line.matchAll(STRINGTABLE_PARSE_REGEXES.STRINGTABLE_KEY_PATTERN)) {
         // if (match[0].endsWith("+")) { continue; };
         yield new FoundKey(clean_text(match[0]), in_line_number, match.indices![0][0], match.indices![0][1], in_file.fsPath, in_line);
     };
@@ -138,10 +153,8 @@ async function* _get_all_matches (in_file: vscode.Uri, in_line: string, in_line_
 
 
 };
-const BLOCK_COMMENT_BEGIN_REGEX = /\/\*/;
-const BLOCK_COMMENT_END_REGEX = /\*\//;
 
-const LINE_COMMENT_BEGIN_REGEX = /\/\//;
+
 
 export async function* find_all_stringtable_keys (file: vscode.Uri): AsyncGenerator<FoundKey> {
     let inside_comment: boolean = false;
@@ -153,7 +166,7 @@ export async function* find_all_stringtable_keys (file: vscode.Uri): AsyncGenera
             continue;
         }
         if (inside_comment) {
-            const end_block_comment_index = line.text.search(BLOCK_COMMENT_END_REGEX);
+            const end_block_comment_index = line.text.search(STRINGTABLE_PARSE_REGEXES.BLOCK_COMMENT_END_REGEX);
             if (end_block_comment_index === -1) {
                 // await utils.sleep(0);
                 continue;
@@ -166,14 +179,14 @@ export async function* find_all_stringtable_keys (file: vscode.Uri): AsyncGenera
             }
         }
 
-        const start_line_comment_index = line.text.search(LINE_COMMENT_BEGIN_REGEX);
+        const start_line_comment_index = line.text.search(STRINGTABLE_PARSE_REGEXES.LINE_COMMENT_BEGIN_REGEX);
 
         if (start_line_comment_index !== -1) {
             yield* _get_all_matches(file, line.text.substring(0, start_line_comment_index), line.lineNumber);
             continue;
         }
 
-        const start_block_comment_index = line.text.search(BLOCK_COMMENT_BEGIN_REGEX);
+        const start_block_comment_index = line.text.search(STRINGTABLE_PARSE_REGEXES.BLOCK_COMMENT_BEGIN_REGEX);
         if (start_block_comment_index !== -1) {
             inside_comment = true;
             yield* _get_all_matches(file, line.text.substring(0, start_block_comment_index), line.lineNumber);
@@ -237,8 +250,8 @@ export async function add_to_stringtable_file (file: vscode.Uri, container_name:
     const xml_text = await vscode.workspace.fs.readFile(file);
     const result = await xml2js.parseStringPromise(xml_text, { chunkSize: 1 * 1000, async: true });
     let was_inserted: boolean = false;
-    for (let _package of result.Project.Package) {
-        for (let container of _package.Container) {
+    for (const _package of result.Project.Package) {
+        for (const container of _package.Container) {
             if (container.$.name === container_name) {
                 container.Key.push({ "$": { "ID": key_name }, "Original": [original_value] });
                 was_inserted = true;
@@ -265,15 +278,15 @@ export async function parse_xml_file_async (file: vscode.Uri): Promise<XMLResult
 
     const result = await xml2js.parseStringPromise(xml_text, {});
     if ((!result) || (!result.Project) || (!result.Project.Package)) { return { found_keys: all_keys, found_container_names: Array.from(all_container_names).sort() }; }
-    for (let _package of result.Project.Package) {
+    for (const _package of result.Project.Package) {
         if (!_package.Container) { continue; }
 
-        for (let container of _package.Container) {
+        for (const container of _package.Container) {
             await utils.sleep(0);
             all_container_names.add(container.$.name);
             if (!container.Key) { continue; }
 
-            for (let key of container.Key) {
+            for (const key of container.Key) {
 
                 const _id: string = key.$.ID;
                 const _value: string = key.Original[0];

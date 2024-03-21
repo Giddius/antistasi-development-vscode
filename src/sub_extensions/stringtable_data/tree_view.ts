@@ -9,6 +9,8 @@ import { FoundKey } from "./parsing";
 // endregion[Imports]
 
 
+
+
 interface ReloadEventData {
     model?: StringtableModel;
 }
@@ -45,7 +47,7 @@ const CONTAINER_ICON = new vscode.ThemeIcon("type-hierarchy");
 
 let SQF_LANGUAGE_AVAILABLE: boolean = false;
 
-type FilterFunction = (item: StringtableFileModel | StringtableContainerModel | StringtableEntryModel | StringtableUsageLocationModel) => boolean;
+type FilterFunction = (item: StringtableModel) => boolean;
 
 
 export class StringtableUsageLocationModel implements StringtableModel {
@@ -121,7 +123,7 @@ export class StringtableEntryModel implements StringtableModel {
     public name;
     public extendable: boolean;
     public icon?: string | vscode.Uri | vscode.ThemeIcon | undefined;
-    entry: StringtableEntry;
+    public entry: StringtableEntry;
     protected _visible: boolean;
 
     protected parent_model: StringtableContainerModel | StringtableFileModel;
@@ -394,15 +396,15 @@ export class StringtableFileModel implements StringtableModel {
 
 export class StringTableTreeView implements vscode.TreeDataProvider<StringtableModel> {
     protected stringtables_data: StringTableDataStorage;
-    protected models: StringtableFileModel[];
+    protected readonly models: StringtableFileModel[];
     protected filter_function?: FilterFunction;
 
     constructor (stringtables_data: StringTableDataStorage) {
         this.stringtables_data = stringtables_data;
         this.models = [];
 
-        this.stringtables_data.onDataLoaded(() => utils.sleep(1.5 * 1000).then(() => this.reload()));
-        this.stringtables_data.onUsageLocationAdded((entry) => this.reload_entry(entry));
+        // this.stringtables_data.onDataLoaded(() => utils.sleep(1.5 * 1000).then(() => this.reload()));
+        // this.stringtables_data.onUsageLocationAdded((entry) => this.reload_entry(entry));
     }
 
 
@@ -468,7 +470,8 @@ export class StringTableTreeView implements vscode.TreeDataProvider<StringtableM
     async load (): Promise<void> {
         console.log(`load called`);
         SQF_LANGUAGE_AVAILABLE = ((await vscode.languages.getLanguages()).map((item) => { return item.toLowerCase(); }).includes("sqf"));
-        this.models = this.stringtables_data.all_stringtable_file_data_items.map((item) => { return new StringtableFileModel(item, this.filter_function); });
+        this.models.splice(0, this.models.length);
+        this.models.push(...this.stringtables_data.all_stringtable_file_data_items.map((item) => { return new StringtableFileModel(item, this.filter_function); }));
         await Promise.all(this.models.map((item) => { item.show_container = false; return item.load(); }));
 
 
@@ -478,10 +481,11 @@ export class StringTableTreeView implements vscode.TreeDataProvider<StringtableM
     async reload (): Promise<void> {
         console.log(`reload called`);
 
-        this.models = [];
+        this.models.splice(0, this.models.length);
         this._onDidChangeTreeData.fire(undefined);
         await utils.sleep(50);
         await this.load();
+
     }
 
     async reload_entry (entry: StringtableEntry) {
