@@ -23,18 +23,27 @@ class GeneralDebugCommand extends FreeCommand {
 
 	constructor () {
 		super();
+
 	}
 
+	async _callback () {
+		console.log(`timer triggered at ${new Date().toTimeString()}`);
+
+		const _ = await vscode.commands.executeCommand("antistasi.only-scan-for-all-undefined-stringtable-keys");
+	}
 	protected async execute (...args: any[]): Promise<void> {
 
+		console.dir(process.versions);
+		console.dir(process.memoryUsage());
 
-
-
-		async function _callback () {
-			console.log(`timer triggered at ${new Date().toTimeString()}`);
-			await vscode.commands.executeCommand("antistasi.only-scan-for-all-undefined-stringtable-keys");
+		if (this._timeout) {
+			await vscode.window.showInformationMessage("already activated");
+			return;
 		}
-		this._timeout = setInterval(_callback, 90 * 1000);
+
+
+
+		this._timeout = setInterval(this._callback, 90 * 1000);
 	}
 
 	public async dispose (): Promise<void> {
@@ -129,6 +138,8 @@ class AntistasiDevelopmentExtension implements vscode.Disposable {
 
 
 export async function activate (context: vscode.ExtensionContext): Promise<any> {
+
+
 
 
 	if (!utils.is_inside_workspace()) { return; };
