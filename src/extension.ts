@@ -33,8 +33,7 @@ class GeneralDebugCommand extends FreeCommand {
 	}
 	protected async execute (...args: any[]): Promise<void> {
 
-		console.dir(process.versions);
-		console.dir(process.memoryUsage());
+
 
 		if (this._timeout) {
 			await vscode.window.showInformationMessage("already activated");
